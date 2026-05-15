@@ -4,7 +4,7 @@ import { isParcelowMethod } from '../../types/form.types';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowUpRight, CreditCard } from 'lucide-react';
+import { AlertCircle, ArrowUpRight, CreditCard } from 'lucide-react';
 
 // Step 3 Sub-components
 import { ContractTermsSection } from './step3/ContractTermsSection';
@@ -45,6 +45,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
     } = actions;
 
     const { t } = useTranslation();
+    const isSignaturePendingConfirmation = Boolean(signatureImageDataUrl && !signatureConfirmed);
 
     React.useEffect(() => {
         if (paymentMethod === 'square_card' && !showSquare) {
@@ -110,6 +111,16 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     showStripe={false}
                     showSquare={showSquare}
                 />
+
+                {paymentMethod && isSignaturePendingConfirmation && (
+                    <div className="flex items-start gap-3 rounded-lg border border-red-500/70 bg-red-500/10 px-4 py-3 text-red-100 animate-in fade-in slide-in-from-top-2">
+                        <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-300" />
+                        <p className="text-sm leading-relaxed">
+                            <span className="font-bold">{t('checkout.payment_locked_signature_title', 'Pagamento bloqueado:')}</span>{' '}
+                            {t('checkout.payment_locked_signature_message', 'clique em "Pronto" na assinatura digital acima para liberar o botao de pagar.')}
+                        </p>
+                    </div>
+                )}
 
                 {paymentMethod === 'parcelow_card' && (
                     <div className="mt-3 flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 animate-in fade-in slide-in-from-top-2">

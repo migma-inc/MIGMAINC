@@ -226,6 +226,15 @@ function isSupportChatSettingsMissingError(error: { code?: string; message?: str
     || message.includes('support_chat_runtime_settings');
 }
 
+function isSupportChatReadReceiptUnavailableError(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? '';
+  return error.code === '42P01'
+    || error.code === 'PGRST205'
+    || error.code === '23514'
+    || message.includes('support_chat_read_receipts')
+    || message.includes('support_chat_read_receipts_viewer_role_check');
+}
+
 function normalizeSupportChatSettings(profileRow: unknown, globalRow?: unknown): SupportChatSettings {
   const profile = profileRow && typeof profileRow === 'object' ? profileRow as Record<string, unknown> : null;
   const global = globalRow && typeof globalRow === 'object' ? globalRow as Record<string, unknown> : null;
@@ -357,6 +366,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [resolvedHandoff, setResolvedHandoff] = useState<HandoffRecord | null>(null);
   const [supportChatSettings, setSupportChatSettings] = useState<SupportChatSettings>(DEFAULT_SUPPORT_CHAT_SETTINGS);
+  const [latestPersistedSupportMessageId, setLatestPersistedSupportMessageId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -444,7 +454,9 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       setSupportChatSettings(normalizeSupportChatSettings(profileSettingsData, globalSettingsData));
     }
 
-    setMessages(chatData && chatData.length > 0 ? [welcomeMessage, ...(chatData as Message[])] : [welcomeMessage]);
+    const persistedMessages = (chatData ?? []) as Message[];
+    setMessages(persistedMessages.length > 0 ? [welcomeMessage, ...persistedMessages] : [welcomeMessage]);
+    setLatestPersistedSupportMessageId(persistedMessages[persistedMessages.length - 1]?.id ?? null);
 
     const handoffs = (handoffData ?? []) as HandoffRecord[];
     const active = handoffs.find((h) => isActiveHandoff(h.status));
@@ -483,6 +495,34 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     }
   }, [userProfile?.id, welcomeMessage]);
 
+  const markStudentSupportChatRead = useCallback(
+    async (latestMessageId: string | null) => {
+      if (!userProfile?.id || !latestMessageId) return;
+
+      const { error } = await supabase
+        .from('support_chat_read_receipts')
+        .upsert(
+          {
+            profile_id: userProfile.id,
+            viewer_role: 'student',
+            last_read_message_id: latestMessageId,
+            last_read_at: new Date().toISOString(),
+          },
+          { onConflict: 'profile_id,viewer_user_id' },
+        );
+
+      if (!error) return;
+
+      if (isSupportChatReadReceiptUnavailableError(error)) {
+        console.info('[StudentSupport] Student read receipt tracking is waiting for the DB migration.');
+        return;
+      }
+
+      console.warn('[StudentSupport] failed to mark student support chat as read', error);
+    },
+    [userProfile?.id],
+  );
+
   useEffect(() => {
     if (!userProfile?.id) return;
 
@@ -491,6 +531,11 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       setHistoryLoaded(true);
     })();
   }, [loadSupportState, userProfile?.id]);
+
+  useEffect(() => {
+    if (!historyLoaded || !userProfile?.id) return;
+    void markStudentSupportChatRead(latestPersistedSupportMessageId);
+  }, [historyLoaded, latestPersistedSupportMessageId, markStudentSupportChatRead, userProfile?.id]);
 
   useEffect(() => {
     if (!userProfile?.id) return;

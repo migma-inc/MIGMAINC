@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractTermsSection } from './step3/ContractTermsSection';
 import { SignatureSection } from './step3/SignatureSection';
 import { Button } from '@/components/ui/button';
-import { CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 
 interface Step3SignatureOnlyProps {
     state: VisaCheckoutState;
@@ -26,6 +26,7 @@ export const Step3SignatureOnly: React.FC<Step3SignatureOnlyProps> = ({ state, a
     } = actions;
 
     const { t } = useTranslation();
+    const isSignaturePendingConfirmation = Boolean(signatureImageDataUrl && !signatureConfirmed);
 
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -58,6 +59,16 @@ export const Step3SignatureOnly: React.FC<Step3SignatureOnlyProps> = ({ state, a
                 )}
 
                 {couponSlot}
+
+                {isSignaturePendingConfirmation && (
+                    <div className="flex items-start gap-3 rounded-lg border border-amber-400/60 bg-amber-400/10 px-4 py-3 text-amber-100 animate-in fade-in slide-in-from-top-2">
+                        <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-300" />
+                        <p className="text-sm leading-relaxed">
+                            <span className="font-bold">{t('checkout.signature_submit_locked_title', 'Finalizacao bloqueada:')}</span>{' '}
+                            {t('checkout.signature_submit_locked_message', 'clique em "Pronto" na assinatura digital acima para confirmar antes de continuar.')}
+                        </p>
+                    </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-white/10">
                     <button

@@ -32,7 +32,7 @@ const METHODS: MethodOption[] = [
     id: 'parcelow_pix',
     labelKey: 'checkout.method_parcelow_pix_label',
     sublabelKey: 'checkout.method_parcelow_pix_sub',
-    regions: ['BR'],
+    regions: ['US', 'BR', 'OTHER'],
   },
   {
     id: 'parcelow_ted',

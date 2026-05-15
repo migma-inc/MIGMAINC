@@ -2,7 +2,7 @@ import type { VisaProduct } from '@/types/visa-product';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CreditCard, DollarSign, Lock, CheckCircle } from 'lucide-react';
+import { AlertCircle, CreditCard, DollarSign, Lock, CheckCircle } from 'lucide-react';
 import { isParcelowMethod } from '../../types/form.types';
 import type { SplitPaymentConfig } from '../steps/step3/SplitPaymentSelector';
 
@@ -14,6 +14,7 @@ interface OrderSummaryProps {
     splitPaymentConfig?: SplitPaymentConfig | null;
     showPaymentButton?: boolean;
     isPaymentReady?: boolean;
+    paymentBlockedReason?: string | null;
     isSubmitting?: boolean;
     onPay?: () => void;
     selectedUpsell?: 'none' | 'canada-premium' | 'canada-revolution';
@@ -32,6 +33,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
     splitPaymentConfig,
     showPaymentButton,
     isPaymentReady,
+    paymentBlockedReason,
     isSubmitting,
     onPay,
     selectedUpsell = 'none',
@@ -156,6 +158,12 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
 
                 {showPaymentButton && onPay && (
                     <div ref={checkoutButtonRef} className="pt-4 animate-in fade-in slide-in-from-bottom-2 hidden lg:block">
+                        {!isPaymentReady && paymentBlockedReason && (
+                            <div className="mb-3 flex items-start gap-2 rounded-md border border-red-500/70 bg-red-500/10 px-3 py-2 text-red-100">
+                                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-300" />
+                                <p className="text-xs sm:text-sm leading-relaxed">{paymentBlockedReason}</p>
+                            </div>
+                        )}
                         <Button
                             onClick={onPay}
                             disabled={!isPaymentReady || isSubmitting}

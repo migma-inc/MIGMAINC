@@ -13,6 +13,11 @@ enabled = true
 verify_jwt = true
 entrypoint = "./functions/support-mentor-message-notify/index.ts"
 
+[functions.support-student-message-notify]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/support-student-message-notify/index.ts"
+
 [functions.mentor-google-oauth-start]
 enabled = true
 verify_jwt = true

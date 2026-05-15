@@ -13,6 +13,8 @@ import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import type { StepProps } from '../types';
 import { UniversitySelectionModal, type Institution, type ScholarshipLevel } from './UniversitySelectionModal';
+import { isPreOnboardingDevBypassEnabled } from '../devMode';
+import { getInstitutionBannerUrl, getInstitutionLogoUrl, isLocalInstitutionBannerUrl } from './institutionLogoAssets';
 
 const MAX_SELECTIONS = 4;
 const POPULAR_PLACEMENT_FEE_USD = 1800;
@@ -109,13 +111,14 @@ type ExistingApplication = {
   status: string;
   institution_id: string;
   scholarship_level_id: string;
-  institutions: { name: string; city: string; state: string; logo_url?: string | null } | null;
+  institutions: { name: string; slug?: string | null; city: string; state: string; logo_url?: string | null } | null;
   institution_scholarships: { scholarship_level: string | null; discount_percent: number | null } | null;
 };
 
 export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   const { userProfile } = useStudentAuth();
   const { t } = useTranslation();
+  const preOnboardingDevBypass = isPreOnboardingDevBypassEnabled();
 
   const formatDegreeLevel = (value: string | null | undefined) => {
     if (!value) return '';
@@ -181,9 +184,14 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         .order('name');
 
       if (fetchError) throw fetchError;
-        const catalog = ((data as Institution[]) || [])
-          .filter(inst => isInstitutionEligibleForProfile(inst, profileEligibility))
+        const sourceCatalog = ((data as Institution[]) || []);
+        const catalog = (preOnboardingDevBypass
+          ? sourceCatalog
+          : sourceCatalog.filter(inst => isInstitutionEligibleForProfile(inst, profileEligibility))
+        )
           .map(inst => {
+            if (preOnboardingDevBypass) return inst;
+
             const eligibleScholarships = inst.scholarships.filter(scholarship =>
               isScholarshipEligibleForProfile(scholarship, profileEligibility)
             );
@@ -211,7 +219,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           .from('institution_applications')
           .select(`
             id, status, institution_id, scholarship_level_id,
-            institutions ( name, city, state, logo_url ),
+            institutions ( name, slug, city, state, logo_url ),
             institution_scholarships ( scholarship_level, discount_percent )
           `)
           .eq('profile_id', profileId);
@@ -223,7 +231,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
       hasLoadedOnceRef.current = true;
       if (shouldShowBlockingLoader) setLoading(false);
     }
-  }, [profileEligibility, profileId]);
+  }, [profileEligibility, profileId, preOnboardingDevBypass]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -306,7 +314,13 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   };
 
   const handleConfirm = async () => {
-    if (!userProfile?.id || selections.size === 0 || saving) return;
+    if (selections.size === 0 || saving) return;
+    if (preOnboardingDevBypass && !userProfile?.id) {
+      setShowConfirmModal(false);
+      onNext();
+      return;
+    }
+    if (!userProfile?.id) return;
     setSaving(true);
     try {
       // Filter out selections that already have existing applications
@@ -426,31 +440,35 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         <div className="w-full space-y-3">
           <p className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">{t('student_onboarding.scholarship.applications_in_review', 'Applications in Review:')}</p>
           <div className="space-y-2">
-            {existingApps.map(app => (
-              <div key={app.id} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 group hover:bg-white/[0.05] transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
-                    {app.institutions?.logo_url ? (
-                      <img
-                        src={app.institutions.logo_url}
-                        alt={app.institutions.name}
-                        className="w-full h-full object-contain p-1.5"
-                      />
-                    ) : (
-                      <span className="text-xs font-bold text-gray-900">
-                        {app.institutions?.name.charAt(0)}
-                      </span>
-                    )}
+            {existingApps.map(app => {
+              const logoUrl = getInstitutionLogoUrl(app.institutions);
+              const isLocalBanner = isLocalInstitutionBannerUrl(logoUrl);
+              return (
+                <div key={app.id} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 group hover:bg-white/[0.05] transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
+                      {logoUrl ? (
+                        <img
+                          src={logoUrl}
+                          alt={app.institutions?.name ?? ''}
+                          className={isLocalBanner ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-1.5'}
+                        />
+                      ) : (
+                        <span className="text-xs font-bold text-gray-900">
+                          {app.institutions?.name.charAt(0)}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-sm font-bold text-white group-hover:text-gold-medium transition-colors">
+                      {app.institutions?.name}
+                    </span>
                   </div>
-                  <span className="text-sm font-bold text-white group-hover:text-gold-medium transition-colors">
-                    {app.institutions?.name}
+                  <span className="text-[10px] bg-gold-medium/10 text-gold-medium px-2.5 py-1 rounded-full font-black uppercase tracking-tighter">
+                    {app.institution_scholarships?.scholarship_level || t('student_onboarding.scholarship.migma_scholarship', 'Migma Scholarship')}
                   </span>
                 </div>
-                <span className="text-[10px] bg-gold-medium/10 text-gold-medium px-2.5 py-1 rounded-full font-black uppercase tracking-tighter">
-                  {app.institution_scholarships?.scholarship_level || t('student_onboarding.scholarship.migma_scholarship', 'Migma Scholarship')}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -500,17 +518,19 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
               s => s.id === entry.scholarshipId
             );
             const course = entry.institution.courses[0];
+            const logoUrl = getInstitutionLogoUrl(entry.institution);
+            const isLocalBanner = isLocalInstitutionBannerUrl(logoUrl);
             return (
               <div
                 key={entry.institution.id}
                 className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 flex items-start gap-4"
               >
                 <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-white/20">
-                  {entry.institution.logo_url ? (
+                  {logoUrl ? (
                     <img
-                      src={entry.institution.logo_url}
+                      src={logoUrl}
                       alt={entry.institution.name}
-                      className="w-full h-full object-contain p-2"
+                      className={isLocalBanner ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-2'}
                     />
                   ) : (
                     <span className="text-gold-medium font-black text-lg">
@@ -618,24 +638,28 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
               </div>
 
               <div className="space-y-2">
-                {Array.from(selections.values()).map(entry => (
-                  <div key={entry.institution.id} className="flex items-center gap-3 bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3">
-                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0 overflow-hidden border border-white/10">
-                      {entry.institution.logo_url ? (
-                        <img
-                          src={entry.institution.logo_url}
-                          alt={entry.institution.name}
-                          className="w-full h-full object-contain p-1.5"
-                        />
-                      ) : (
-                        <span className="text-gold-medium font-black text-sm">
-                          {entry.institution.name.charAt(0)}
-                        </span>
-                      )}
+                {Array.from(selections.values()).map(entry => {
+                  const logoUrl = getInstitutionLogoUrl(entry.institution);
+                  const isLocalBanner = isLocalInstitutionBannerUrl(logoUrl);
+                  return (
+                    <div key={entry.institution.id} className="flex items-center gap-3 bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3">
+                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0 overflow-hidden border border-white/10">
+                        {logoUrl ? (
+                          <img
+                            src={logoUrl}
+                            alt={entry.institution.name}
+                            className={isLocalBanner ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-1.5'}
+                          />
+                        ) : (
+                          <span className="text-gold-medium font-black text-sm">
+                            {entry.institution.name.charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-white truncate">{entry.institution.name}</p>
                     </div>
-                    <p className="text-sm font-bold text-white truncate">{entry.institution.name}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="flex flex-col gap-3">
@@ -984,6 +1008,8 @@ const InstitutionCard: React.FC<CardProps> = ({
   institution, isSelected, currentScholarshipId, selectionDisabled, onOpenModal, onRemove,
 }) => {
   const { t } = useTranslation();
+  const logoUrl = getInstitutionBannerUrl(institution);
+  const isLocalBanner = isLocalInstitutionBannerUrl(logoUrl);
   const scholarships = useMemo(() => 
     [...institution.scholarships].sort((a, b) => a.placement_fee_usd - b.placement_fee_usd),
     [institution.scholarships]
@@ -1048,11 +1074,11 @@ const InstitutionCard: React.FC<CardProps> = ({
     >
       {/* ── Logo banner ── */}
       <div className="relative h-32 bg-white flex items-center justify-center overflow-hidden shrink-0">
-        {institution.logo_url ? (
+        {logoUrl ? (
           <img
-            src={institution.logo_url}
+            src={logoUrl}
             alt={institution.name}
-            className="w-full h-full object-contain p-6"
+            className={isLocalBanner ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-6'}
           />
         ) : (
           <span className="text-5xl font-black text-gray-200 select-none">
@@ -1068,7 +1094,7 @@ const InstitutionCard: React.FC<CardProps> = ({
           </div>
         )}
         {institution.highlight_badge && !isSelected && (
-          <div className="absolute top-3 left-3 bg-white/10 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full">
+          <div className="absolute top-3 left-3 bg-black/85 border border-gold-medium/50 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full shadow-[0_6px_18px_rgba(0,0,0,0.45)] backdrop-blur-sm">
             {institution.highlight_badge}
           </div>
         )}

@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,22 @@ import { Calendar, Plus, Loader2 } from 'lucide-react';
 import { scheduleMeeting, updateScheduledMeeting, type ScheduledMeeting } from '@/lib/meetings';
 import { getCurrentUser } from '@/lib/auth';
 
+type MeetingSourceFilter = 'all' | 'manual' | 'partner' | 'support';
+
+function normalizeMeetingSourceFilter(value: string | null): MeetingSourceFilter {
+  return value === 'manual' || value === 'partner' || value === 'support' ? value : 'all';
+}
+
+const SOURCE_FILTER_LABELS: Record<MeetingSourceFilter, string> = {
+  all: 'All sources',
+  manual: 'Manual meetings',
+  partner: 'Partner meetings',
+  support: 'Support meetings',
+};
+
 export function ScheduleMeetingPage() {
+  const [searchParams] = useSearchParams();
+  const sourceFilter = normalizeMeetingSourceFilter(searchParams.get('source'));
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [meetingDate, setMeetingDate] = useState('');
@@ -326,6 +342,9 @@ export function ScheduleMeetingPage() {
               <CardTitle className="text-white flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 Scheduled Meetings
+                <span className="rounded-full border border-gold-medium/30 bg-gold-medium/10 px-2 py-0.5 text-[11px] font-semibold text-gold-light">
+                  {SOURCE_FILTER_LABELS[sourceFilter]}
+                </span>
               </CardTitle>
               <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
                 {/* Search Input */}
@@ -380,6 +399,7 @@ export function ScheduleMeetingPage() {
           <CardContent>
             <ScheduledMeetingsList
               filterDate={filterDate}
+              sourceFilter={sourceFilter}
               refreshKey={refreshKey}
               onEdit={handleEdit}
               searchTerm={searchTerm}

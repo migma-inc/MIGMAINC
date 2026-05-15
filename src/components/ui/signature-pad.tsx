@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import SignaturePad from 'signature_pad';
 import { Button } from './button';
 import { Label } from './label';
-import { RotateCcw, Check } from 'lucide-react';
+import { AlertCircle, RotateCcw, Check } from 'lucide-react';
 
 interface SignaturePadComponentProps {
   onSignatureChange: (signatureDataUrl: string | null) => void;
@@ -541,7 +541,10 @@ export function SignaturePadComponent({
             handleConfirm();
           }}
           disabled={isEmpty || autoConfirmCountdown !== null}
-          className="bg-black text-gold-light hover:bg-gray-900 hover:text-gold-medium disabled:opacity-50 font-semibold min-h-[44px] text-xs sm:text-sm flex-1 sm:flex-initial"
+          className={`${!isEmpty && autoConfirmCountdown === null
+            ? 'bg-gold-medium text-black hover:bg-gold-light shadow-[0_0_0_2px_rgba(234,179,8,0.25)]'
+            : 'bg-black text-gold-light hover:bg-gray-900 hover:text-gold-medium'
+            } disabled:opacity-50 font-semibold min-h-[44px] text-xs sm:text-sm flex-1 sm:flex-initial`}
         >
           <Check className="w-4 h-4 mr-1 sm:mr-2" />
           {t('checkout.done', 'Done')}
@@ -549,13 +552,22 @@ export function SignaturePadComponent({
       </div>
 
       {!isEmpty && (
-        <p className="text-xs sm:text-sm text-gold-light font-medium">
-          ✓ {autoConfirmCountdown !== null ? (
-            <span>{t('checkout.signature_captured_confirming', 'Signature captured. Confirming in {{count}} seconds...', { count: autoConfirmCountdown })}</span>
+        <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-xs sm:text-sm font-medium ${autoConfirmCountdown !== null
+          ? 'border-gold-medium/40 bg-gold-medium/10 text-gold-light'
+          : 'border-amber-400/60 bg-amber-400/10 text-amber-100'
+          }`}>
+          {autoConfirmCountdown !== null ? (
+            <Check className="mt-0.5 h-4 w-4 flex-shrink-0" />
           ) : (
-            <span>{t('checkout.click_done_confirm_clear_resign', 'Click "Done" to confirm, or "Clear" to re-sign.')}</span>
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
           )}
-        </p>
+          <p>
+            {autoConfirmCountdown !== null
+              ? t('checkout.signature_captured_confirming', 'Assinatura capturada. Confirmando em {{count}} segundos...', { count: autoConfirmCountdown })
+              : t('checkout.signature_drawn_click_done_to_unlock_payment', 'Assinatura desenhada, mas ainda nao confirmada. Clique em "Pronto" para liberar o pagamento.')
+            }
+          </p>
+        </div>
       )}
 
       {isEmpty && (
