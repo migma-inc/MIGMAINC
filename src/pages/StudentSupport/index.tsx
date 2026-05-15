@@ -12,7 +12,7 @@ const SUPPORT_N8N_WEBHOOK_URL = (
 ) as string | undefined;
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
 const DEFAULT_SUPPORT_CHAT_SETTINGS: SupportChatSettings = {
-  ai_enabled: false,
+  ai_enabled: true,
   human_timeout_minutes: 60,
 };
 
@@ -238,15 +238,8 @@ function normalizeSupportChatSettings(profileRow: unknown, globalRow?: unknown):
   const humanTimeoutMinutes = Number.isFinite(rawTimeout)
     ? Math.min(1440, Math.max(1, Math.round(rawTimeout)))
     : DEFAULT_SUPPORT_CHAT_SETTINGS.human_timeout_minutes;
-  const rawAiEnabled = record.ai_enabled === true;
-  const updatedAt = typeof profile?.updated_at === 'string' ? profile.updated_at : null;
-  const pauseUntilMs = profile && !rawAiEnabled && updatedAt
-    ? new Date(updatedAt).getTime() + humanTimeoutMinutes * 60 * 1000
-    : null;
-  const aiEnabled = rawAiEnabled || (pauseUntilMs !== null && Number.isFinite(pauseUntilMs) && pauseUntilMs <= Date.now());
-
   return {
-    ai_enabled: aiEnabled,
+    ai_enabled: true,
     human_timeout_minutes: humanTimeoutMinutes,
   };
 }
@@ -377,7 +370,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
   const humanTimeoutActive = latestHumanMessageAt !== null
     && !Number.isNaN(latestHumanMessageAt)
     && nowMs - latestHumanMessageAt < humanTimeoutMs;
-  const humanSupportActive = handedOff || humanTimeoutActive || !supportChatSettings.ai_enabled;
+  const humanSupportActive = handedOff || humanTimeoutActive;
   const composerLocked = handedOff && handoffRequiresMeeting && Boolean(handoffMeetingUrl) && !meetingCountdown?.expired;
   const supportStatusLabel = handedOff
     ? t('student_support.status.waiting_agent', 'Waiting for support')
