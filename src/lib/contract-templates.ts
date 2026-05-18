@@ -462,6 +462,7 @@ export async function updateContractTemplate(
     if (data.description !== undefined) updateData.description = data.description;
     if (data.content !== undefined) updateData.content = data.content;
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
+    updateData.updated_at = new Date().toISOString();
 
     // Handle template_type and product_slug
     const newTemplateType = data.template_type !== undefined
