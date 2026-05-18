@@ -83,8 +83,13 @@ export function SellerStudentLinks() {
           (!import.meta.env.PROD && currentSeller?.role === 'head_of_sales');
 
         if (shouldShowAllSellers) {
-          setTargetSeller(null);
-          setSelectedSellerId('direct');
+          if (userIsAdmin) {
+            setTargetSeller(null);
+            setSelectedSellerId('direct');
+          } else if (currentSeller) {
+            setTargetSeller(currentSeller);
+            setSelectedSellerId(currentSeller.id);
+          }
           setLoadingTeam(true);
           try {
             let query = supabase.from('sellers').select('*').eq('status', 'active');
@@ -92,7 +97,12 @@ export function SellerStudentLinks() {
               query = query.eq('is_test', false);
             }
             const { data: allSellers } = await query.order('full_name');
-            if (allSellers) setTeamMembers(allSellers as SellerInfo[]);
+            if (allSellers) {
+              const members = currentSeller && !allSellers.some(m => m.id === currentSeller.id)
+                ? [currentSeller, ...allSellers]
+                : allSellers;
+              setTeamMembers(members as SellerInfo[]);
+            }
           } finally {
             setLoadingTeam(false);
           }
@@ -257,7 +267,7 @@ export function SellerStudentLinks() {
         <CardContent>
           <div className="space-y-3">
             {STUDENT_SERVICES.map(({ key, label, description, available }) => {
-              const sellerId = targetSeller?.seller_id_public;
+              const sellerId = targetSeller?.seller_id_public || (!showSellerDropdown ? seller?.seller_id_public : undefined);
               const link = available
                 ? `${window.location.origin}/student/checkout/${key}${sellerId ? `?ref=${sellerId}` : ''}`
                 : null;

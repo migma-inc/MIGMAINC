@@ -31,6 +31,35 @@ function getSupabaseConfig() {
   return { supabaseUrl, supabaseServiceKey };
 }
 
+async function invokeMigmaPaymentCompleted(body: Record<string, unknown>) {
+  const { supabaseUrl, supabaseServiceKey } = getSupabaseConfig();
+  const response = await fetch(`${supabaseUrl}/functions/v1/migma-payment-completed`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${supabaseServiceKey}`,
+      "apikey": supabaseServiceKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const responseText = await response.text();
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      error: responseText || response.statusText,
+    };
+  }
+
+  return {
+    ok: true,
+    status: response.status,
+    data: responseText,
+  };
+}
+
 interface ParcelowWebhookEvent {
   event: string;
   order?: any;
@@ -1031,23 +1060,31 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
 
         if (!isApplicationFee) {
           console.log(`[Parcelow Webhook] 🚀 Invocando migma-payment-completed para usuário ${migmaPending.migma_user_id} (Evento: ${eventType})`);
-          const { error: payErr } = await supabase.functions.invoke("migma-payment-completed", {
-            body: {
-              user_id: migmaPending.migma_user_id,
-              fee_type: migmaPending.fee_type || "selection_process",
-              amount: migmaPending.amount,
-              payment_method: "parcelow",
-              service_type: migmaPending.service_type,
-              service_request_id: migmaPending.service_request_id || undefined,
-              parcelow_order_id: parcelowOrder.id.toString(),
-            },
+          const payResult = await invokeMigmaPaymentCompleted({
+            user_id: migmaPending.migma_user_id,
+            fee_type: migmaPending.fee_type || "selection_process",
+            amount: migmaPending.amount,
+            payment_method: "parcelow",
+            service_type: migmaPending.service_type,
+            service_request_id: migmaPending.service_request_id || undefined,
+            parcelow_order_id: parcelowOrder.id.toString(),
           });
 
-          if (payErr) {
-            console.error("[Parcelow Webhook] ❌ migma-payment-completed falhou:", payErr);
-          } else {
-            console.log("[Parcelow Webhook] ✅ Migma processado com sucesso!");
+          if (!payResult.ok) {
+            console.error("[Parcelow Webhook] ❌ migma-payment-completed falhou:", payResult);
+            await supabase
+              .from("migma_parcelow_pending")
+              .update({
+                status: "processing_failed",
+                migma_payment_completed: false,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", migmaPending.id);
+
+            throw new Error(`migma-payment-completed failed for Parcelow order ${parcelowOrder.id}`);
           }
+
+          console.log("[Parcelow Webhook] ✅ Migma processado com sucesso!");
         } else {
           console.log(`[Parcelow Webhook] 🎓 Application Fee detectada na migma_parcelow_pending. Pulando migma-payment-completed.`);
           // Atualizar perfil local diretamente

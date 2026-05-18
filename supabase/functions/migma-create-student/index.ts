@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
       else if (s.includes('initial')) mappedProcessType = 'initial';
     }
 
-    const { error: upsertErr } = await migma.from("user_profiles").upsert({
+    const profilePayload: Record<string, unknown> = {
       user_id: userId,
       email, full_name, phone, 
       service_type, // Mantém o original para referência
@@ -168,9 +168,12 @@ Deno.serve(async (req) => {
       num_dependents: num_dependents || 0,
       student_process_type: mappedProcessType, // Usa o valor mapeado/limpo
       source: 'migma',
-      migma_seller_id: sellerId,
-      migma_agent_id: agentId
-    }, { onConflict: 'user_id' });
+    };
+
+    if (sellerId) profilePayload.migma_seller_id = sellerId;
+    if (agentId) profilePayload.migma_agent_id = agentId;
+
+    const { error: upsertErr } = await migma.from("user_profiles").upsert(profilePayload, { onConflict: 'user_id' });
 
     if (upsertErr) {
       debug_logs.push(`Erro upsert perfil: ${upsertErr.message}`);
