@@ -29,6 +29,21 @@ import { getCurrentUser as getAuthUser } from '@/lib/auth';
 
 type FilterType = 'all' | 'active' | 'inactive';
 
+function formatTemplateDateTime(value?: string | null) {
+  if (!value) return '—';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function ContractTemplatesPage() {
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [filteredTemplates, setFilteredTemplates] = useState<ContractTemplate[]>([]);
@@ -517,7 +532,10 @@ export function ContractTemplatesPage() {
                 <CardContent className="pt-2">
                   <div className="space-y-1 mb-3">
                     <p className="text-xs text-gray-500">
-                      Created: {new Date(template.created_at).toLocaleDateString()}
+                      Created: {formatTemplateDateTime(template.created_at)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Last Updated: {formatTemplateDateTime(template.updated_at)}
                     </p>
                     {template.created_by && (
                       <p className="text-xs text-gray-500 truncate">By: {template.created_by}</p>
