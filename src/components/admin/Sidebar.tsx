@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, UserRound, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown, Plus, Users, UserCheck } from 'lucide-react';
-import { cn, shouldHideTestUsersInProduction, TEST_USER_EMAIL_PATTERN } from '@/lib/utils';
+import { cn, shouldHideTestUsersInProduction, shouldHideTestUserEmail, TEST_USER_EMAIL_PATTERN } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -212,20 +212,35 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose, access
       }).length;
 
       // 4. Zelle Approvals (Full Logic)
-      const { data: zelleOrdersRaw } = await supabase
+      const shouldHideTestApprovals = shouldHideTestUsersInProduction();
+      let zelleOrdersQuery = supabase
         .from('visa_orders')
-        .select('client_email, product_slug, payment_status, zelle_proof_url')
+        .select('client_email, product_slug, payment_status, zelle_proof_url, is_test')
         .eq('payment_method', 'zelle')
         .eq('is_hidden', false)
         .in('payment_status', ['pending', 'completed']);
 
-      const { data: migmaPaymentsRaw } = await supabase
+      if (shouldHideTestApprovals) {
+        zelleOrdersQuery = zelleOrdersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+      }
+
+      const { data: zelleOrdersRaw } = await zelleOrdersQuery;
+
+      let migmaPaymentsQuery = supabase
         .from('migma_payments')
-        .select('user_id, fee_type_global, status')
+        .select('user_id, fee_type_global, status, is_test')
         .in('status', ['pending', 'pending_verification']);
+
+      if (shouldHideTestApprovals) {
+        migmaPaymentsQuery = migmaPaymentsQuery.eq('is_test', false);
+      }
+
+      const { data: migmaPaymentsRaw } = await migmaPaymentsQuery;
 
       const unifiedPendingKeys = new Set<string>();
       (zelleOrdersRaw || []).forEach(o => {
+        if (shouldHideTestUserEmail(o.client_email)) return;
+
         if (o.payment_status === 'pending' && o.zelle_proof_url) {
           const key = `${(o.client_email || '').trim().toLowerCase()}_${(o.product_slug || '').trim().toLowerCase().replace(/-/g, '_')}`;
           unifiedPendingKeys.add(key);
@@ -234,11 +249,20 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose, access
 
       if (migmaPaymentsRaw && migmaPaymentsRaw.length > 0) {
         const userIds = [...new Set(migmaPaymentsRaw.map(p => p.user_id))];
-        const { data: clientsData } = await supabase.from('clients').select('id, email').in('id', userIds);
+        const [{ data: clientsData }, { data: profilesData }] = await Promise.all([
+          supabase.from('clients').select('id, email').in('id', userIds),
+          supabase.from('user_profiles').select('user_id, email').in('user_id', userIds),
+        ]);
         const clientsMap = new Map((clientsData || []).map(c => [c.id, c.email]));
+        const profilesMap = new Map((profilesData || []).map(profile => [profile.user_id, profile.email]));
         const completedKeys = new Set((zelleOrdersRaw || []).filter(o => o.payment_status === 'completed').map(o => `${(o.client_email || '').trim().toLowerCase()}_${(o.product_slug || '').trim().toLowerCase().replace(/-/g, '_')}`));
         migmaPaymentsRaw.forEach(p => {
-          const email = (clientsMap.get(p.user_id) || '').trim().toLowerCase();
+          const rawEmail = clientsMap.get(p.user_id) || profilesMap.get(p.user_id) || '';
+          if (shouldHideTestUserEmail(rawEmail)) return;
+
+          const email = rawEmail.trim().toLowerCase();
+          if (!email) return;
+
           const product = (p.fee_type_global || '').trim().toLowerCase().replace(/-/g, '_');
           const key = `${email}_${product}`;
           if (!completedKeys.has(key)) unifiedPendingKeys.add(key);

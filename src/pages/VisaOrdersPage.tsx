@@ -86,6 +86,68 @@ const shouldDisplayOrder = (order: VisaOrder) => {
   return !order.is_hidden && !isPendingParcelowOrder(order) && !isCancelled;
 };
 
+const getPeriodRange = (period: PeriodOption, customRange: CustomDateRange) => {
+  if (period === 'all_time') return null;
+
+  const now = new Date();
+  const startOfDay = (date: Date) => {
+    const next = new Date(date);
+    next.setHours(0, 0, 0, 0);
+    return next;
+  };
+  const endOfDay = (date: Date) => {
+    const next = new Date(date);
+    next.setHours(23, 59, 59, 999);
+    return next;
+  };
+
+  if (period === 'today') {
+    return { start: startOfDay(now), end: endOfDay(now) };
+  }
+
+  if (period === 'yesterday') {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return { start: startOfDay(yesterday), end: endOfDay(yesterday) };
+  }
+
+  if (period === 'thismonth') {
+    return {
+      start: new Date(now.getFullYear(), now.getMonth(), 1),
+      end: endOfDay(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    };
+  }
+
+  if (period === 'lastmonth') {
+    return {
+      start: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      end: endOfDay(new Date(now.getFullYear(), now.getMonth(), 0)),
+    };
+  }
+
+  if (period === 'custom') {
+    return {
+      start: startOfDay(new Date(`${customRange.start}T00:00:00`)),
+      end: endOfDay(new Date(`${customRange.end}T00:00:00`)),
+    };
+  }
+
+  const rollingDaysByPeriod: Partial<Record<PeriodOption, number>> = {
+    last7days: 7,
+    last30days: 30,
+    last3months: 90,
+    last6months: 180,
+    lastyear: 365,
+  };
+  const days = rollingDaysByPeriod[period];
+  if (!days) return null;
+
+  const start = new Date(now);
+  start.setDate(start.getDate() - (days - 1));
+
+  return { start: startOfDay(start), end: endOfDay(now) };
+};
+
 const matchesActiveTab = (order: VisaOrder, tab: 'real' | 'signatures') => {
   const isManualOrder = order.payment_method === 'manual';
 
@@ -730,28 +792,11 @@ export const VisaOrdersPage = () => {
       query = query.eq('payment_status', 'pending');
     }
 
-    // Apply Period Filter
-    if (periodFilter !== 'all_time') {
-      let start: Date | null = null;
-      let end: Date | null = null;
-      const now = new Date();
-
-      if (periodFilter === 'thismonth') {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-      } else if (periodFilter === 'lastmonth') {
-        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-      } else if (periodFilter === 'custom') {
-        start = new Date(customRange.start + 'T00:00:00');
-        end = new Date(customRange.end + 'T23:59:59');
-      }
-
-      if (start && end) {
-        // Filter by paid_at if available, otherwise created_at
-        // Using or because some orders might not have paid_at yet
-        query = query.gte('created_at', start.toISOString()).lte('created_at', end.toISOString());
-      }
+    const periodRange = getPeriodRange(periodFilter, customRange);
+    if (periodRange) {
+      query = query
+        .gte('created_at', periodRange.start.toISOString())
+        .lte('created_at', periodRange.end.toISOString());
     }
 
     return query;
@@ -874,7 +919,17 @@ export const VisaOrdersPage = () => {
     };
 
     loadData(orders.length === 0);
-  }, [statusFilter, sellerFilter, methodFilter, searchTerm, currentPage, activeTab]);
+  }, [
+    statusFilter,
+    sellerFilter,
+    methodFilter,
+    searchTerm,
+    currentPage,
+    activeTab,
+    periodFilter,
+    customRange.start,
+    customRange.end,
+  ]);
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
