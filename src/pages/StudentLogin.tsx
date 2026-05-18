@@ -30,7 +30,7 @@ const StudentLogin: React.FC = () => {
 
   // Persist seller ref
   useEffect(() => {
-    const ref = searchParams.get('ref') || searchParams.get('seller_id');
+    const ref = searchParams.get('ref') || searchParams.get('seller_id') || searchParams.get('seller');
     if (ref) saveSellerRef(ref);
   }, [searchParams]);
 

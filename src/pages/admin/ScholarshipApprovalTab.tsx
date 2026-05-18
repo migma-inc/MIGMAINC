@@ -114,6 +114,7 @@ interface InstitutionApplication {
     accepts_transfer: boolean;
     application_fee_usd: number;
     institution_courses: {
+      id: string;
       course_name: string;
       degree_level: string;
       area: string;
@@ -121,6 +122,7 @@ interface InstitutionApplication {
   } | null;
   institution_scholarships: {
     id: string;
+    course_id: string | null;
     scholarship_level: string | null;
     placement_fee_usd: number;
     discount_percent: number;
@@ -218,6 +220,14 @@ const getScholarshipCourse = (institution: CatalogInstitution, scholarship: Cata
     ? institution.courses.find(course => course.id === scholarship.course_id) ?? null
     : institution.courses[0] ?? null;
 
+const getApplicationCourse = (app: InstitutionApplication) => {
+  const courses = app.institutions?.institution_courses ?? [];
+  const courseId = app.institution_scholarships?.course_id;
+  return courseId
+    ? courses.find(course => course.id === courseId) ?? null
+    : courses[0] ?? null;
+};
+
 const buildEligiblePreviewCatalog = (
   institutions: CatalogInstitution[],
   profile: CaseDetailPage['profile'],
@@ -311,10 +321,10 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           acceptance_letter_url, created_at,
           institutions (
             id, name, slug, city, state, modality, cpt_opt, accepts_cos, accepts_transfer, application_fee_usd,
-            institution_courses ( course_name, degree_level, area )
+            institution_courses ( id, course_name, degree_level, area )
           ),
           institution_scholarships (
-            id, scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd, monthly_migma_usd, installments_total
+            id, course_id, scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd, monthly_migma_usd, installments_total
           )
         `;
       const selectLegacy = `
@@ -326,10 +336,10 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           acceptance_letter_url, created_at,
           institutions (
             id, name, slug, city, state, modality, cpt_opt, accepts_cos, accepts_transfer, application_fee_usd,
-            institution_courses ( course_name, degree_level, area )
+            institution_courses ( id, course_name, degree_level, area )
           ),
           institution_scholarships (
-            id, scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd, monthly_migma_usd, installments_total
+            id, course_id, scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd, monthly_migma_usd, installments_total
           )
         `;
 
@@ -380,11 +390,11 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       const { data: selectedScholarship, error: selectedScholarshipErr } = await supabase
         .from('institution_scholarships')
         .select(`
-          id, institution_id, scholarship_level, placement_fee_usd, discount_percent,
+          id, institution_id, course_id, scholarship_level, placement_fee_usd, discount_percent,
           tuition_annual_usd, monthly_migma_usd, installments_total,
           institutions (
             id, name, slug, city, state, modality, cpt_opt, accepts_cos, accepts_transfer, application_fee_usd,
-            institution_courses ( course_name, degree_level, area )
+            institution_courses ( id, course_name, degree_level, area )
           )
         `)
         .eq('id', profileScholarshipRow.selected_scholarship_id)
@@ -421,6 +431,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           institutions: institution ?? null,
           institution_scholarships: {
             id: selectedScholarship.id,
+            course_id: selectedScholarship.course_id,
             scholarship_level: selectedScholarship.scholarship_level,
             placement_fee_usd: selectedScholarship.placement_fee_usd,
             discount_percent: selectedScholarship.discount_percent,
@@ -505,7 +516,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       const originUrl = window.location.origin;
       const now = new Date().toISOString();
       let checkoutUrl: string | null = null;
-      const course = app.institutions?.institution_courses?.[0];
+      const course = getApplicationCourse(app);
       const scholarshipPercent = app.institution_scholarships.discount_percent;
 
       if (placementFee === 0) {
@@ -1009,7 +1020,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           {applications.map(app => {
             const inst = app.institutions;
             const scholar = app.institution_scholarships;
-            const course = inst?.institution_courses?.[0];
+            const course = getApplicationCourse(app);
             const st = statusLabel(app.status);
             const isPending = app.status === 'pending_admin_approval';
             const isSelected = selectedAppId === app.id;
@@ -1685,11 +1696,12 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           {selectedAppId && (() => {
             const app = applications.find(a => a.id === selectedAppId);
             const scholar = app?.institution_scholarships;
+            const course = app ? getApplicationCourse(app) : null;
             return (
               <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-xl p-4 space-y-2">
                 <p className="font-black text-white">{app?.institutions?.name}</p>
-                {app?.institutions?.institution_courses?.[0] && (
-                  <p className="text-sm text-gray-400">{app.institutions.institution_courses[0].course_name}</p>
+                {course && (
+                  <p className="text-sm text-gray-400">{course.course_name}</p>
                 )}
                 {scholar && (
                   <div className="flex gap-2 flex-wrap mt-2">
@@ -1750,9 +1762,9 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           {rejectTargetApp && (
             <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 space-y-2">
               <p className="font-black text-white">{rejectTargetApp.institutions?.name}</p>
-              {rejectTargetApp.institutions?.institution_courses?.[0] && (
+              {getApplicationCourse(rejectTargetApp) && (
                 <p className="text-sm text-gray-400">
-                  {rejectTargetApp.institutions.institution_courses[0].course_name}
+                  {getApplicationCourse(rejectTargetApp)?.course_name}
                 </p>
               )}
               {rejectTargetApp.institution_scholarships && (

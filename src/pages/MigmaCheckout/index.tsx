@@ -89,9 +89,12 @@ const MigmaCheckout: React.FC = () => {
   const orderIdRef = useRef<string | null>(null);
   const isLocalDev = isLocalDevHost();
 
+  const getSellerParam = () =>
+    searchParams.get('ref') || searchParams.get('seller_id') || searchParams.get('seller');
+
   useEffect(() => {
     // Persist seller ref to localStorage so it survives auth redirects
-    const refParam = searchParams.get('ref') || searchParams.get('seller_id');
+    const refParam = getSellerParam();
     if (refParam) {
       saveSellerRef(refParam);
       supabase.auth.getSession()
@@ -689,7 +692,7 @@ const MigmaCheckout: React.FC = () => {
     const email = data.email.trim();
     const phoneClean = data.phone.replace(/\D/g, '');
 
-    const sellerId = searchParams.get('ref') || searchParams.get('seller_id') || getSellerRef();
+    const sellerId = getSellerParam() || getSellerRef();
     const agentId = searchParams.get('agent') || searchParams.get('agent_id');
 
     const slugMap: Record<string, string> = {

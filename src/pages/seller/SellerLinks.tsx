@@ -643,6 +643,8 @@ export function SellerLinks() {
     );
   }
 
+  const showSellerDropdown = isAdmin || seller?.role === 'head_of_sales';
+
   return (
     <div className={isSharedInAdmin ? "p-4 sm:p-6 lg:p-8" : ""}>
       <div className={isSharedInAdmin ? "max-w-7xl mx-auto space-y-6" : "space-y-6"}>
@@ -652,7 +654,7 @@ export function SellerLinks() {
         </div>
 
         {/* Target Seller Selector (Admin and Head of Sales only) */}
-        {(isAdmin || seller?.role === 'head_of_sales') && (
+        {showSellerDropdown && (
           <Card className="bg-black/40 border-gold-medium/20">
             <CardContent className="pt-6">
               <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -677,7 +679,7 @@ export function SellerLinks() {
                     <SelectValue placeholder="Select a seller" />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-900 border-gold-medium/30 text-white">
-                    {(isAdmin || seller?.role === 'head_of_sales') && (
+                    {showSellerDropdown && (
                       <SelectItem value="direct">Direct Sale / Migma (No Seller)</SelectItem>
                     )}
                     {teamMembers.map(member => (
@@ -1444,7 +1446,7 @@ export function SellerLinks() {
                         const expiresAt = new Date();
                         expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
 
-                        const targetSellerId = targetSeller?.seller_id_public;
+                        const targetSellerId = targetSeller?.seller_id_public || (!showSellerDropdown ? seller?.seller_id_public : undefined);
 
                         const { error: insertError } = await supabase
                           .from('checkout_prefill_tokens')
@@ -1856,7 +1858,7 @@ export function SellerLinks() {
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
-                                              const targetSellerId = targetSeller?.seller_id_public;
+                                              const targetSellerId = targetSeller?.seller_id_public || (!showSellerDropdown ? seller?.seller_id_public : undefined);
 
                                               const { error: insertError } = await supabase
                                                 .from('checkout_prefill_tokens')
@@ -1903,7 +1905,7 @@ export function SellerLinks() {
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
-                                              const targetSellerId = targetSeller?.seller_id_public;
+                                              const targetSellerId = targetSeller?.seller_id_public || (!showSellerDropdown ? seller?.seller_id_public : undefined);
 
                                               const { error: insertError } = await supabase
                                                 .from('checkout_prefill_tokens')
@@ -2081,7 +2083,7 @@ export function SellerLinks() {
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
-                                        const targetSellerId = targetSeller?.seller_id_public;
+                                        const targetSellerId = targetSeller?.seller_id_public || (!showSellerDropdown ? seller?.seller_id_public : undefined);
 
                                         const { error: insertError } = await supabase
                                           .from('checkout_prefill_tokens')
@@ -2128,7 +2130,7 @@ export function SellerLinks() {
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
-                                        const targetSellerId = targetSeller?.seller_id_public;
+                                        const targetSellerId = targetSeller?.seller_id_public || (!showSellerDropdown ? seller?.seller_id_public : undefined);
 
                                         const { error: insertError } = await supabase
                                           .from('checkout_prefill_tokens')
