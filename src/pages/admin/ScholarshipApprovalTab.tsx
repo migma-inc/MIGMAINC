@@ -14,7 +14,7 @@ import {
   Award, CheckCircle2, Clock, Copy, DollarSign,
   ExternalLink, GraduationCap, Loader2, MapPin, RefreshCw,
   Send, Shield, Timer, X, AlertTriangle, CheckCircle,
-  FileText, Package, Link, CreditCard, Download,
+  FileText, Package, Link, CreditCard, Download, ChevronDown,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -92,6 +92,8 @@ interface InstitutionApplication {
   placement_fee_2nd_installment_paid_at: string | null;
   admin_approved_at: string | null;
   admin_approved_by: string | null;
+  rejected_at: string | null;
+  rejected_by: string | null;
   payment_link_url: string | null;
   payment_link_generated_at: string | null;
   forms_status: string | null;
@@ -147,6 +149,13 @@ function fmtDate(iso: string | null | undefined) {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Unexpected error';
+}
+
+function isMissingRejectionAuditSchemaError(error: unknown) {
+  const text = JSON.stringify(error ?? '').toLowerCase();
+  return text.includes('institution_applications') &&
+    (text.includes('rejected_at') || text.includes('rejected_by')) &&
+    (text.includes('column') || text.includes('schema') || text.includes('could not find'));
 }
 
 const formatUsd = (value: number | null | undefined) =>
@@ -248,12 +257,16 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
 
   const [applications, setApplications] = useState<InstitutionApplication[]>([]);
   const [eligiblePreview, setEligiblePreview] = useState<EligiblePreviewInstitution[]>([]);
+  const [expandedEligibleInstitutionIds, setExpandedEligibleInstitutionIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [rejectTargetAppId, setRejectTargetAppId] = useState<string | null>(null);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
@@ -289,9 +302,22 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: err } = await supabase
-        .from('institution_applications')
-        .select(`
+      const selectWithAudit = `
+          id, profile_id, institution_id, scholarship_level_id, status,
+          placement_fee_paid_at, placement_fee_installments, placement_fee_2nd_installment_paid_at,
+          admin_approved_at, admin_approved_by, rejected_at, rejected_by,
+          payment_link_url, payment_link_generated_at,
+          forms_status, package_status, package_storage_url, package_sent_at,
+          acceptance_letter_url, created_at,
+          institutions (
+            id, name, slug, city, state, modality, cpt_opt, accepts_cos, accepts_transfer, application_fee_usd,
+            institution_courses ( course_name, degree_level, area )
+          ),
+          institution_scholarships (
+            id, scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd, monthly_migma_usd, installments_total
+          )
+        `;
+      const selectLegacy = `
           id, profile_id, institution_id, scholarship_level_id, status,
           placement_fee_paid_at, placement_fee_installments, placement_fee_2nd_installment_paid_at,
           admin_approved_at, admin_approved_by,
@@ -305,16 +331,36 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           institution_scholarships (
             id, scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd, monthly_migma_usd, installments_total
           )
-        `)
+        `;
+
+      const applicationsResult = await supabase
+        .from('institution_applications')
+        .select(selectWithAudit)
         .eq('profile_id', profile.id)
         .order('created_at', { ascending: true });
+      let data: unknown = applicationsResult.data;
+      let err = applicationsResult.error;
+
+      if (err && isMissingRejectionAuditSchemaError(err)) {
+        const legacyResult = await supabase
+          .from('institution_applications')
+          .select(selectLegacy)
+          .eq('profile_id', profile.id)
+          .order('created_at', { ascending: true });
+        data = legacyResult.data as unknown;
+        err = legacyResult.error;
+      }
 
       if (err) throw err;
-      const normalizedApplications = (data as unknown as InstitutionApplication[]) || [];
+      const normalizedApplications = (((data as unknown as Partial<InstitutionApplication>[]) || []).map(app => ({
+        rejected_at: null,
+        rejected_by: null,
+        ...app,
+      }))) as InstitutionApplication[];
 
       if (normalizedApplications.length > 0) {
-        setEligiblePreview([]);
         setApplications(normalizedApplications);
+        await fetchEligiblePreview();
         return;
       }
 
@@ -347,7 +393,6 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       if (selectedScholarshipErr) throw selectedScholarshipErr;
 
       if (selectedScholarship) {
-        setEligiblePreview([]);
         const institution = Array.isArray(selectedScholarship.institutions)
           ? selectedScholarship.institutions[0]
           : selectedScholarship.institutions;
@@ -363,6 +408,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           placement_fee_2nd_installment_paid_at: null,
           admin_approved_at: null,
           admin_approved_by: null,
+          rejected_at: null,
+          rejected_by: null,
           payment_link_url: null,
           payment_link_generated_at: null,
           forms_status: null,
@@ -382,6 +429,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             installments_total: selectedScholarship.installments_total,
           },
         }]);
+        await fetchEligiblePreview();
         return;
       }
 
@@ -412,6 +460,29 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
 
   // ── Derive overall status ──
   const approvedApp = applications.find(a => a.status === 'approved' || a.status === 'payment_pending' || a.status === 'payment_confirmed');
+  const rejectTargetApp = useMemo(
+    () => applications.find(a => a.id === rejectTargetAppId) ?? null,
+    [applications, rejectTargetAppId],
+  );
+  const eligiblePreviewCount = useMemo(
+    () => eligiblePreview.reduce((total, institution) => total + institution.scholarships.length, 0),
+    [eligiblePreview],
+  );
+  const selectedScholarshipIds = useMemo(
+    () => new Set(applications.map(app => app.scholarship_level_id).filter((id): id is string => Boolean(id))),
+    [applications],
+  );
+  const toggleEligibleInstitution = useCallback((institutionId: string) => {
+    setExpandedEligibleInstitutionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(institutionId)) {
+        next.delete(institutionId);
+      } else {
+        next.add(institutionId);
+      }
+      return next;
+    });
+  }, []);
   const overallStatus: 'awaiting' | 'approved' | 'paid' =
     applications.some(a => a.status === 'payment_confirmed') ? 'paid' :
     approvedApp ? 'approved' :
@@ -566,6 +637,54 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
     }
   };
 
+  const openRejectDialog = (appId: string) => {
+    setRejectTargetAppId(appId);
+    setShowRejectDialog(true);
+  };
+
+  const handleRejectScholarship = async () => {
+    if (!rejectTargetAppId) return;
+
+    setRejecting(true);
+    setActionMsg(null);
+
+    try {
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr) throw sessionErr;
+      if (!session?.user?.id) {
+        throw new Error('Authenticated admin or mentor session is required to reject a scholarship.');
+      }
+
+      const { data, error: rejectErr } = await supabase
+        .from('institution_applications')
+        .update({ status: 'rejected' })
+        .eq('id', rejectTargetAppId)
+        .eq('profile_id', profile.id)
+        .eq('status', 'pending_admin_approval')
+        .select('id, status, rejected_at, rejected_by')
+        .maybeSingle();
+
+      if (rejectErr && isMissingRejectionAuditSchemaError(rejectErr)) {
+        throw new Error('Rejection audit columns are not available in this Supabase environment yet. Apply the local migration before rejecting scholarships.');
+      }
+      if (rejectErr) throw rejectErr;
+      if (!data) {
+        throw new Error('This scholarship is no longer pending approval.');
+      }
+
+      if (selectedAppId === rejectTargetAppId) setSelectedAppId(null);
+      setShowRejectDialog(false);
+      setRejectTargetAppId(null);
+      setActionMsg('Scholarship rejected successfully.');
+      await fetchApplications();
+    } catch (err) {
+      console.error('[reject-scholarship]', err);
+      setActionMsg(`Error rejecting scholarship: ${errorMessage(err)}`);
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   const copyLink = (url: string) => {
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
@@ -699,7 +818,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           <div className="xl:col-span-2 space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
               <GraduationCap className="w-4 h-4 text-gold-medium" />
-              Eligible Scholarships Preview ({eligiblePreview.reduce((total, institution) => total + institution.scholarships.length, 0)})
+              Eligible Scholarships Preview ({eligiblePreviewCount})
             </h3>
 
             {eligiblePreview.length === 0 ? (
@@ -1015,12 +1134,166 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                           Placement Fee paid on {fmtDate(app.placement_fee_paid_at)}
                         </p>
                       )}
+                      {app.rejected_at && (
+                        <div className="mt-2 space-y-0.5 text-[10px] text-red-300">
+                          <p className="flex items-center gap-1">
+                            <X className="w-3 h-3" />
+                            Rejected on {fmtDate(app.rejected_at)}
+                          </p>
+                          {app.rejected_by && (
+                            <p className="text-gray-600 font-mono">
+                              Rejected by {app.rejected_by}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {isPending && (
+                        <div className="mt-4 flex justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={processing || rejecting}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRejectDialog(app.id);
+                            }}
+                            className="border-red-500/20 bg-red-500/5 text-red-300 hover:bg-red-500/10 hover:text-red-200 text-[10px] font-black uppercase tracking-widest"
+                          >
+                            <X className="w-3.5 h-3.5 mr-1.5" />
+                            Reject Scholarship
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
               </Card>
             );
           })}
+
+          <Card className="bg-black/20 border border-white/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                <GraduationCap className="w-4 h-4 text-gold-medium" />
+                Eligible Scholarships Shown to Student ({eligiblePreviewCount})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {eligiblePreview.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 border border-white/5 rounded-xl bg-black/20">
+                  <GraduationCap className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs">No eligible scholarship options found for this profile.</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                  {eligiblePreview.map(institution => {
+                    const isExpanded = expandedEligibleInstitutionIds.has(institution.id);
+                    const selectedCount = institution.scholarships.filter(scholarship =>
+                      selectedScholarshipIds.has(scholarship.id),
+                    ).length;
+
+                    return (
+                      <div key={institution.id} className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => toggleEligibleInstitution(institution.id)}
+                          aria-expanded={isExpanded}
+                          className="w-full px-4 py-3.5 text-left hover:bg-white/[0.04] transition-colors"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-black text-white">{institution.name}</p>
+                              <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-3 h-3" />
+                                {institution.city}, {institution.state} · {institution.modality}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {selectedCount > 0 && (
+                                <Badge className="text-[9px] font-black uppercase border rounded-sm bg-gold-medium/15 text-gold-medium border-gold-medium/30">
+                                  {selectedCount} selected
+                                </Badge>
+                              )}
+                              <Badge className="text-[9px] font-black uppercase border rounded-sm bg-white/5 text-gray-300 border-white/10">
+                                {institution.scholarships.length} option(s)
+                              </Badge>
+                              <ChevronDown
+                                className={cn(
+                                  'w-4 h-4 text-gray-500 transition-transform',
+                                  isExpanded && 'rotate-180 text-gold-medium',
+                                )}
+                              />
+                            </div>
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="border-t border-white/10 p-3 grid gap-2 bg-black/20">
+                            {institution.scholarships.map(scholarship => {
+                              const course = getScholarshipCourse(institution, scholarship);
+                              const wasSelected = selectedScholarshipIds.has(scholarship.id);
+
+                              return (
+                                <div
+                                  key={scholarship.id}
+                                  className={cn(
+                                    'rounded-lg border px-3 py-2.5',
+                                    wasSelected
+                                      ? 'border-gold-medium/30 bg-gold-medium/5'
+                                      : 'border-white/10 bg-black/20',
+                                  )}
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-bold text-white">
+                                        {scholarship.scholarship_level ?? 'Scholarship option'}
+                                      </p>
+                                      {course && (
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                          {course.course_name} · {course.degree_level} · {course.area}
+                                        </p>
+                                      )}
+                                    </div>
+                                    {wasSelected ? (
+                                      <Badge className="text-[9px] font-black uppercase border rounded-sm bg-gold-medium/15 text-gold-medium border-gold-medium/30">
+                                        Selected by student
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-bold">
+                                        {scholarship.discount_percent}% OFF
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    <span className="text-xs bg-gold-medium/10 border border-gold-medium/20 text-gold-medium px-2.5 py-1 rounded-full font-bold">
+                                      Placement: {formatUsd(scholarship.placement_fee_usd)}
+                                    </span>
+                                    <span className="text-xs bg-white/5 border border-white/10 text-gray-400 px-2.5 py-1 rounded-full font-bold">
+                                      Tuition: {formatUsd(scholarship.tuition_annual_usd)}/year
+                                    </span>
+                                    <span className="text-xs bg-white/5 border border-white/10 text-gray-400 px-2.5 py-1 rounded-full font-bold">
+                                      MIGMA: {formatUsd(scholarship.monthly_migma_usd)}/mo
+                                    </span>
+                                    {scholarship.bank_statement_required_usd != null && (
+                                      <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-300 px-2.5 py-1 rounded-full font-bold">
+                                        Bank statement: {formatUsd(scholarship.bank_statement_required_usd)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* ── 8.2 Critérios de Aprovação (informational) ── */}
           <Card className="bg-black/20 border border-white/5">
@@ -1454,6 +1727,72 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
               {processing
                 ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Approving...</>
                 : <><CheckCircle2 className="w-4 h-4 mr-2" />Confirm Approval</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showRejectDialog}
+        onOpenChange={(open) => {
+          setShowRejectDialog(open);
+          if (!open && !rejecting) setRejectTargetAppId(null);
+        }}
+      >
+        <DialogContent className="bg-[#0f0f0f] border border-red-500/20 text-white max-w-md rounded-3xl">
+          <DialogTitle className="text-lg font-black uppercase tracking-tight">
+            Reject Scholarship
+          </DialogTitle>
+          <DialogDescription className="text-gray-400 text-sm leading-relaxed">
+            Confirming will reject this scholarship option. The database will record who rejected it and when.
+          </DialogDescription>
+
+          {rejectTargetApp && (
+            <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 space-y-2">
+              <p className="font-black text-white">{rejectTargetApp.institutions?.name}</p>
+              {rejectTargetApp.institutions?.institution_courses?.[0] && (
+                <p className="text-sm text-gray-400">
+                  {rejectTargetApp.institutions.institution_courses[0].course_name}
+                </p>
+              )}
+              {rejectTargetApp.institution_scholarships && (
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {rejectTargetApp.institution_scholarships.scholarship_level && (
+                    <span className="text-xs text-purple-300 font-bold">
+                      {rejectTargetApp.institution_scholarships.scholarship_level}
+                    </span>
+                  )}
+                  <span className="text-xs text-gold-medium font-bold">
+                    Placement Fee: ${rejectTargetApp.institution_scholarships.placement_fee_usd.toLocaleString()}
+                  </span>
+                  <span className="text-xs text-emerald-400 font-bold">
+                    {rejectTargetApp.institution_scholarships.discount_percent}% discount
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-3 mt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRejectDialog(false);
+                setRejectTargetAppId(null);
+              }}
+              disabled={rejecting}
+              className="flex-1 border-white/10 text-white bg-transparent hover:bg-white/10"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRejectScholarship}
+              disabled={rejecting || !rejectTargetApp}
+              className="flex-1 bg-red-500 hover:bg-red-400 text-white font-black"
+            >
+              {rejecting
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Rejecting...</>
+                : <><X className="w-4 h-4 mr-2" />Confirm Rejection</>}
             </Button>
           </div>
         </DialogContent>

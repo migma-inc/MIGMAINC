@@ -37,6 +37,13 @@ interface InstitutionApplication {
 
 type PaymentMethod = 'stripe' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted' | 'zelle';
 
+const ACTIVE_APPLICATION_STATUSES = new Set([
+  'pending_admin_approval',
+  'approved',
+  'payment_pending',
+  'payment_confirmed',
+]);
+
 // ─── Icon components ───────────────────────────────────────────────────────────
 const ParcelowIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -130,8 +137,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   }, [fetchApplications, userProfile?.id]);
 
   const activeApp = useMemo(() =>
-    applications.find(a => ['payment_pending', 'payment_confirmed', 'approved'].includes(a.status)) ||
-    applications.find(a => a.status === 'pending_admin_approval'),
+    applications.find(a => ACTIVE_APPLICATION_STATUSES.has(a.status)),
   [applications]);
 
   const scholar = activeApp?.institution_scholarships;
@@ -268,6 +274,23 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
       <div className="text-center py-16 space-y-4">
         <Building className="w-12 h-12 text-gray-600 mx-auto opacity-20" />
         <p className="text-gray-500">{t('student_onboarding.placement_fee.no_applications_select_first', 'No applications found. Select your universities first.')}</p>
+      </div>
+    );
+  }
+
+  if (!activeApp) {
+    return (
+      <div className="text-center py-16 space-y-4">
+        <AlertCircle className="w-12 h-12 text-red-400 mx-auto opacity-60" />
+        <p className="text-gray-400">
+          {t('student_onboarding.placement_fee.no_active_application', 'Your previous scholarship options were not approved. Select new universities to continue.')}
+        </p>
+        <button
+          onClick={() => window.location.href = '?step=scholarship_selection'}
+          className="bg-gold-medium hover:bg-gold-dark text-black py-3 px-6 rounded-2xl font-black uppercase tracking-widest transition-all"
+        >
+          {t('student_onboarding.placement_fee.select_new_scholarships', 'Select New Scholarships')}
+        </button>
       </div>
     );
   }

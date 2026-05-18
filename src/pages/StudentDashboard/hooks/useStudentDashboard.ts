@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useStudentAuth } from '@/contexts/StudentAuthContext';
 
+const ACTIVE_APPLICATION_STATUSES = new Set([
+  'pending_admin_approval',
+  'approved',
+  'payment_pending',
+  'payment_confirmed',
+]);
+
 export interface DashboardApplication {
   id: string;
   status: string;
@@ -249,7 +256,7 @@ export function useStudentDashboard() {
   }, [fetchDashboard]);
 
   const activeApplication = useMemo(() => {
-    return data.applications.find(app => ['payment_confirmed', 'payment_pending', 'approved'].includes(app.status)) ?? data.applications[0] ?? null;
+    return data.applications.find(app => ACTIVE_APPLICATION_STATUSES.has(app.status)) ?? null;
   }, [data.applications]);
 
   return {
