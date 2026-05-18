@@ -115,6 +115,14 @@ type ExistingApplication = {
   institution_scholarships: { scholarship_level: string | null; discount_percent: number | null } | null;
 };
 
+const ACTIVE_APPLICATION_STATUSES = new Set([
+  'pending_admin_approval',
+  'approved',
+  'payment_pending',
+  'payment_confirmed',
+  'accepted',
+]);
+
 export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext, devCatalogBypass = false }) => {
   const { userProfile } = useStudentAuth();
   const { t } = useTranslation();
@@ -238,6 +246,11 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext, devCatalo
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const activeExistingApps = useMemo(
+    () => existingApps.filter(app => ACTIVE_APPLICATION_STATUSES.has(app.status)),
+    [existingApps],
+  );
+
   // ── Derived filter options ──
   const uniqueAreas = useMemo(() => {
     const areas = new Set<string>();
@@ -328,7 +341,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext, devCatalo
     try {
       // Filter out selections that already have existing applications
       const newEntries = Array.from(selections.values()).filter(entry => 
-        !existingApps.some(app => app.institution_id === entry.institution.id)
+        !activeExistingApps.some(app => app.institution_id === entry.institution.id)
       );
 
       if (newEntries.length === 0) {
@@ -383,9 +396,9 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext, devCatalo
   }
 
   const selectedInst = modalInstId ? institutions.find(i => i.id === modalInstId) : null;
-  const isApproved = !showFullCatalogInDev && existingApps.some(a => ['approved', 'payment_pending', 'payment_confirmed', 'accepted'].includes(a.status));
-  const canContinueWithExistingApps = !showFullCatalogInDev && DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS && existingApps.length > 0;
-  const isPendingApproval = !showFullCatalogInDev && !isApproved && existingApps.length > 0 && existingApps.every(a => a.status === 'pending_admin_approval');
+  const isApproved = !showFullCatalogInDev && activeExistingApps.some(a => ['approved', 'payment_pending', 'payment_confirmed', 'accepted'].includes(a.status));
+  const canContinueWithExistingApps = !showFullCatalogInDev && DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS && activeExistingApps.length > 0;
+  const isPendingApproval = !showFullCatalogInDev && !isApproved && activeExistingApps.length > 0 && activeExistingApps.every(a => a.status === 'pending_admin_approval');
 
   // ── Approved state fallback ──
   if (isApproved || canContinueWithExistingApps) {
@@ -443,7 +456,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext, devCatalo
         <div className="w-full space-y-3">
           <p className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">{t('student_onboarding.scholarship.applications_in_review', 'Applications in Review:')}</p>
           <div className="space-y-2">
-            {existingApps.map(app => {
+            {activeExistingApps.map(app => {
               const logoUrl = getInstitutionLogoUrl(app.institutions);
               const isLocalBanner = isLocalInstitutionBannerUrl(logoUrl);
               return (

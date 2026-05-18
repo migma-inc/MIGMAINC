@@ -15,6 +15,13 @@ const VALID_STEPS: OnboardingStep[] = [
 const REVIEW_LOCK_MS = 24 * 60 * 60 * 1000;
 const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = false;
 const DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS = true;
+const ACTIVE_SCHOLARSHIP_APPLICATION_STATUSES = new Set([
+  'pending_admin_approval',
+  'approved',
+  'payment_pending',
+  'payment_confirmed',
+  'accepted',
+]);
 
 type DevOnboardingOverrideOptions = {
   completePreviousSteps: boolean;
@@ -255,19 +262,23 @@ export const useOnboardingProgress = () => {
       // Cart de bolsas / Seleção realizada
       let scholarshipsSelected = false;
       let scholarshipsApproved = false;
+      let hasOnlyRejectedV11Apps = false;
       if (selectionFeePaid) {
         await applicationStore.fetchCart(user.id);
         const currentCart = useCartStore.getState().cart;
         
-        const hasV11Apps = v11AppsData && v11AppsData.length > 0;
+        const allV11Apps = v11AppsData ?? [];
+        const activeV11Apps = allV11Apps.filter(a => ACTIVE_SCHOLARSHIP_APPLICATION_STATUSES.has(a.status));
+        const hasV11Apps = activeV11Apps.length > 0;
+        hasOnlyRejectedV11Apps = allV11Apps.length > 0 && activeV11Apps.length === 0;
         
         scholarshipsSelected = !!(
           currentCart.length > 0 ||
           hasV11Apps ||
-          !!freshProfile.selected_scholarship_id
+          (!hasOnlyRejectedV11Apps && !!freshProfile.selected_scholarship_id)
         );
 
-        scholarshipsApproved = !!(hasV11Apps && v11AppsData!.some(a =>
+        scholarshipsApproved = !!(hasV11Apps && activeV11Apps.some(a =>
           ['approved', 'payment_pending', 'payment_confirmed', 'accepted'].includes(a.status)
         ));
       }
@@ -310,6 +321,8 @@ export const useOnboardingProgress = () => {
         computedMaxAllowedStep = 'selection_fee';
       } else if (!selectionSurveyPassed) {
         computedMaxAllowedStep = 'selection_survey';
+      } else if (hasOnlyRejectedV11Apps) {
+        computedMaxAllowedStep = 'scholarship_selection';
       } else if ((!reviewWindowComplete || !contractApproved) && !DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS) {
         computedMaxAllowedStep = 'wait_room';
       } else if (!scholarshipsSelected || (!scholarshipsApproved && !DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS)) {
@@ -340,6 +353,8 @@ export const useOnboardingProgress = () => {
       let chosenStep: OnboardingStep;
       if (onboardingCompleted) {
         chosenStep = 'completed';
+      } else if (hasOnlyRejectedV11Apps) {
+        chosenStep = 'scholarship_selection';
       } else if (uiIdx > maxIdx) {
         // Aluno tentou avançar mais do que o permitido — volta para o máximo permitido
         chosenStep = computedMaxAllowedStep;
