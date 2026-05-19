@@ -34,6 +34,10 @@ Deno.serve(async (req: Request) => {
       part2_method,
       origin,
     } = body;
+    const parcelowEnvironment =
+      body.parcelow_environment === "production" || body.parcelow_environment === "staging"
+        ? body.parcelow_environment
+        : undefined;
 
     debug_logs.push(`Iniciando split para: ${email}`);
 
@@ -126,7 +130,19 @@ Deno.serve(async (req: Request) => {
     const methodMap: Record<string, string> = { card: 'parcelow_card', pix: 'parcelow_pix', ted: 'parcelow_ted' };
 
     // partner_reference deve ser único por parte para evitar deduplicação pela Parcelow
-    const sharedBody = { user_id, order_id: finalOrderId, email, full_name, phone, cpf, payer_info, service_type, service_request_id, is_split_part: true };
+    const sharedBody = {
+      user_id,
+      order_id: finalOrderId,
+      email,
+      full_name,
+      phone,
+      cpf,
+      payer_info,
+      service_type,
+      service_request_id,
+      is_split_part: true,
+      parcelow_environment: parcelowEnvironment,
+    };
 
     // --- 2. Criar P1 PRIMEIRO, depois P2 (sequencial para evitar deduplicação Parcelow) ---
     debug_logs.push(`Criando P1 via migma-parcelow-checkout...`);

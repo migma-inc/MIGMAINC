@@ -88,6 +88,11 @@ const MigmaCheckout: React.FC = () => {
   // Ref para capturar order_id de createStudent de forma síncrona (evita race condition com setState)
   const orderIdRef = useRef<string | null>(null);
   const isLocalDev = isLocalDevHost();
+  const getParcelowEnvironmentOverride = (): 'production' | 'staging' | undefined => {
+    const configured = import.meta.env.VITE_PARCELOW_ENVIRONMENT;
+    if (configured === 'production' || configured === 'staging') return configured;
+    return isLocalDev ? 'staging' : undefined;
+  };
 
   const getSellerParam = () =>
     searchParams.get('ref') || searchParams.get('seller_id') || searchParams.get('seller');
@@ -839,6 +844,7 @@ const MigmaCheckout: React.FC = () => {
           part2_amount: payment.splitConfig.part2_amount,
           part2_method: payment.splitConfig.part2_method,
           origin: window.location.origin,
+          parcelow_environment: getParcelowEnvironmentOverride(),
         });
 
         if (!splitResult?.success || !splitResult?.part1_checkout_url) {
@@ -906,7 +912,8 @@ const MigmaCheckout: React.FC = () => {
             ? payment.payerInfo?.cpf
             : payment.cpf,
           card_ownership: payment.cardOwnership,
-          payer_info: payment.payerInfo
+          payer_info: payment.payerInfo,
+          parcelow_environment: getParcelowEnvironmentOverride(),
         });
 
         const finalUrl = parcelowResult.checkout_url || parcelowResult.url_checkout || parcelowResult.url;
