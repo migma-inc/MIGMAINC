@@ -33,13 +33,19 @@ export function SellerStudentLinks() {
   const context = useOutletContext<{ seller?: SellerInfo }>();
   const location = useLocation();
   const isSharedInAdmin = location.pathname.startsWith('/dashboard/');
-  const [seller, setSeller] = useState<SellerInfo | null>(context?.seller || null);
+  const initialSeller = context?.seller || null;
+  const initialSellerCanChooseTarget = initialSeller?.role === 'admin' || initialSeller?.role === 'head_of_sales';
+  const [seller, setSeller] = useState<SellerInfo | null>(initialSeller);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(!context?.seller);
   const [teamMembers, setTeamMembers] = useState<SellerInfo[]>([]);
   const [loadingTeam, setLoadingTeam] = useState(false);
-  const [targetSeller, setTargetSeller] = useState<SellerInfo | null>(null);
-  const [selectedSellerId, setSelectedSellerId] = useState<string>('direct');
+  const [targetSeller, setTargetSeller] = useState<SellerInfo | null>(
+    initialSeller && !initialSellerCanChooseTarget ? initialSeller : null
+  );
+  const [selectedSellerId, setSelectedSellerId] = useState<string>(
+    initialSeller && !initialSellerCanChooseTarget ? initialSeller.id : 'direct'
+  );
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -194,6 +200,26 @@ export function SellerStudentLinks() {
   }
 
   const showSellerDropdown = isAdmin || seller?.role === 'head_of_sales';
+  const getSellerIdForLink = () => {
+    if (showSellerDropdown) {
+      return targetSeller?.seller_id_public?.trim() || '';
+    }
+
+    return seller?.seller_id_public?.trim() || '';
+  };
+
+  const buildStudentLink = (serviceKey: string) => {
+    const sellerId = getSellerIdForLink();
+
+    if (!sellerId && !showSellerDropdown) {
+      return null;
+    }
+
+    const url = new URL(`/student/checkout/${serviceKey}`, window.location.origin);
+    if (sellerId) url.searchParams.set('ref', sellerId);
+    return url.toString();
+  };
+  const sellerProfileMissingPublicId = !showSellerDropdown && !getSellerIdForLink();
 
   return (
     <div className={isSharedInAdmin ? "p-4 sm:p-6 lg:p-8" : ""}>
@@ -267,10 +293,7 @@ export function SellerStudentLinks() {
         <CardContent>
           <div className="space-y-3">
             {STUDENT_SERVICES.map(({ key, label, description, available }) => {
-              const sellerId = targetSeller?.seller_id_public || (!showSellerDropdown ? seller?.seller_id_public : undefined);
-              const link = available
-                ? `${window.location.origin}/student/checkout/${key}${sellerId ? `?ref=${sellerId}` : ''}`
-                : null;
+              const link = available ? buildStudentLink(key) : null;
               const isCopied = link ? copiedLink === link : false;
 
               return (
@@ -295,6 +318,8 @@ export function SellerStudentLinks() {
                     <p className="text-gray-500 text-xs mb-1">{description}</p>
                     {link ? (
                       <p className="text-gold-light/70 text-xs font-mono truncate">{link}</p>
+                    ) : sellerProfileMissingPublicId && available ? (
+                      <p className="text-red-400/80 text-xs italic">Seller ID ausente no perfil</p>
                     ) : (
                       <p className="text-gray-600 text-xs italic">URL ainda não disponível</p>
                     )}

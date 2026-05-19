@@ -8,6 +8,11 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/migma-notify/index.ts"
 
+[functions.migma-payment-completed-internal]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/migma-payment-completed-internal/index.ts"
+
 [functions.support-mentor-message-notify]
 enabled = true
 verify_jwt = true

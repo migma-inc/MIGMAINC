@@ -7,7 +7,6 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-const functionsBaseUrl = (import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined)?.replace(/\/$/, '');
 
 // Client dedicado para Edge Functions — completamente isolado do cliente principal.
 // storageKey diferente evita que os dois GoTrueClients compartilhem o mesmo
@@ -184,6 +183,7 @@ export interface StudentParcelowCheckoutPayload {
   cpf?: string;
   card_ownership?: string;
   payer_info?: any; // Dados de terceiros (PRD v7.0)
+  parcelow_environment?: 'production' | 'staging';
 }
 
 export interface StudentParcelowCheckoutResponse {
@@ -212,6 +212,7 @@ export interface MigmaSplitParcelowCheckoutPayload {
   part2_amount: number;
   part2_method: 'card' | 'pix' | 'ted';
   origin: string;
+  parcelow_environment?: 'production' | 'staging';
 }
 
 export interface MigmaSplitParcelowCheckoutResponse {
@@ -234,36 +235,6 @@ async function invokeFunction<T>(name: string, options: {
   const start = Date.now();
 
   const invokePromise = (async () => {
-    if (functionsBaseUrl) {
-      const url = new URL(`${functionsBaseUrl}/${name}`);
-      if (method === 'GET' && query) {
-        Object.entries(query).forEach(([key, value]) => url.searchParams.set(key, value));
-      }
-
-      const res = await fetch(url.toString(), {
-        method,
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          ...(method === 'GET' ? {} : { 'Content-Type': 'application/json' }),
-        },
-        body: method === 'GET' ? undefined : JSON.stringify(body ?? {}),
-      });
-
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : null;
-      console.log(`[matriculaApi] [${name}] Resposta local recebida em ${Date.now() - start}ms:`, {
-        status: res.status,
-        data,
-      });
-
-      if (!res.ok) {
-        throw new Error(data?.error || data?.message || `Erro na Edge Function ${name}`);
-      }
-
-      return data as T;
-    }
-
     const res = await fnClient.functions.invoke<T>(name, {
       body: invokeBody,
       method,
