@@ -105,6 +105,7 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
             'transfer-forms',
             'institution-forms',
             'document-attachments',
+            'cos-documents',
         ];
 
         const MATRICULAUSA_URL = import.meta.env.VITE_MATRICULAUSA_SUPABASE_URL;

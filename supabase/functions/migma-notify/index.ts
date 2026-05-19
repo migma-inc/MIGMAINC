@@ -970,6 +970,10 @@ function buildRoutes(dash: string) {
   };
 }
 
+function humanizeTrigger(trigger: TriggerType): string {
+  return trigger.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function buildTemplate(
   trigger: TriggerType,
   name: string,
@@ -1626,6 +1630,62 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[migma-notify] trigger=${trigger} user=${user_id ?? "admin"} email=${emailResult.success} whatsapp=${whatsappResult.sent}`);
+
+    const sentAt = new Date().toISOString();
+    const logProfileId = isAdminTrigger ? null : (user_id ?? null);
+
+    const insertNotifyLogs = async () => {
+      const rows: object[] = [];
+
+      if (sendEmailChannel && logProfileId) {
+        rows.push({
+          profile_id: logProfileId,
+          service_request_id: null,
+          direction: "outbound",
+          counterparty_type: "client",
+          channel: "email",
+          provider: "migma-notify",
+          from_address: "noreply@migmainc.com",
+          to_address: recipientEmail || null,
+          subject: template.subject.split(" / ")[0],
+          body_text: template.whatsapp.slice(0, 500),
+          message_metadata: {
+            trigger,
+            status: emailResult.success ? "sent" : "error",
+            error: emailResult.error ?? null,
+          },
+          received_at: sentAt,
+        });
+      }
+
+      if (sendWhatsappChannel && logProfileId) {
+        rows.push({
+          profile_id: logProfileId,
+          service_request_id: null,
+          direction: "outbound",
+          counterparty_type: "client",
+          channel: "whatsapp",
+          provider: whatsappResult.provider ?? "n8n",
+          from_address: "migma-notify",
+          to_address: recipientPhone || null,
+          subject: humanizeTrigger(trigger),
+          body_text: template.whatsapp.slice(0, 500),
+          message_metadata: {
+            trigger,
+            status: whatsappResult.sent ? "sent" : "error",
+            reason: whatsappResult.reason ?? null,
+            provider: whatsappResult.provider ?? null,
+          },
+          received_at: sentAt,
+        });
+      }
+
+      if (rows.length === 0) return;
+      const { error: logErr } = await supabase.from("service_request_messages").insert(rows);
+      if (logErr) console.error("[migma-notify][log]", logErr.message);
+    };
+
+    insertNotifyLogs().catch((e) => console.error("[migma-notify][log] unexpected:", e));
 
     return new Response(
       JSON.stringify({

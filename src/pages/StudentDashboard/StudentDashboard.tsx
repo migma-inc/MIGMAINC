@@ -15,6 +15,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import {
   Dialog,
@@ -41,6 +42,9 @@ import {
   type DashboardForm,
   type DashboardSurveyResponse,
   type DashboardComplementaryData,
+  type DashboardCosCase,
+  type DashboardCosI20Record,
+  type DashboardCosDependent,
 } from './hooks/useStudentDashboard';
 import { useStudentDashboardTour } from './hooks/useStudentDashboardTour';
 
@@ -49,6 +53,7 @@ type StudentDashboardTab =
   | 'applications'
   | 'documents'
   | 'supplemental-data'
+  | 'change-of-status'
   | 'forms'
   | 'rewards'
   | 'support'
@@ -59,6 +64,7 @@ const TABS_CONFIG: Array<{ id: StudentDashboardTab; key: string; icon: React.Com
   { id: 'applications', key: 'student_dashboard.tabs.applications', icon: ClipboardList },
   { id: 'documents', key: 'student_dashboard.tabs.documents', icon: FileText },
   { id: 'supplemental-data', key: 'student_dashboard.tabs.supplemental_data', icon: FileSignature },
+  { id: 'change-of-status', key: 'student_dashboard.tabs.change_of_status', icon: Globe },
   { id: 'forms', key: 'student_dashboard.tabs.forms', icon: FileSignature },
   { id: 'rewards', key: 'student_dashboard.tabs.rewards', icon: Gift },
   { id: 'support', key: 'student_dashboard.tabs.support', icon: MessageCircle },
@@ -67,6 +73,43 @@ const TABS_CONFIG: Array<{ id: StudentDashboardTab; key: string; icon: React.Com
 
 const isDashboardTab = (value: string | undefined): value is StudentDashboardTab =>
   !!value && TABS_CONFIG.some(tab => tab.id === value);
+
+function normalizeStudentProcess(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
+function isCosStudentProfile(profile: unknown) {
+  if (!profile || typeof profile !== 'object') return false;
+  const row = profile as Record<string, unknown>;
+  const process = normalizeStudentProcess(row.student_process_type ?? row.service_type);
+  return process === 'cos' || process === 'change_of_status' || process.includes('change_of_status');
+}
+
+function getStudentProcessDisplayName(profile: unknown) {
+  if (!profile || typeof profile !== 'object') return 'Student';
+  const row = profile as Record<string, unknown>;
+  const raw = row.student_process_type ?? row.service_type;
+  const process = normalizeStudentProcess(raw);
+
+  if (process === 'cos' || process === 'change_of_status' || process.includes('change_of_status')) {
+    return 'Change of Status';
+  }
+  if (process === 'transfer' || process.includes('transfer')) return 'Transfer';
+  if (process === 'initial' || process.includes('initial')) return 'Initial';
+
+  const text = String(raw ?? '').trim();
+  if (!text) return 'Student';
+
+  return text
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
+}
 
 type StudentSupportUnreadMessage = {
   id: string;
@@ -727,6 +770,2240 @@ function OverviewTab({
   );
 }
 
+type CosI539ApplicantResponses = {
+  current_status: string;
+  requested_status: string;
+  last_entry_date: string;
+  i94_number: string;
+  passport_number: string;
+  passport_issuing_country: string;
+  passport_expiration_date: string;
+  us_mailing_address: string;
+  daytime_phone: string;
+  email: string;
+  part4_acknowledged: boolean;
+};
+
+type CosDependentFormState = {
+  id: string;
+  full_name: string;
+  relationship: DashboardCosDependent['relationship'];
+  date_of_birth: string;
+  country_of_birth: string;
+  country_of_citizenship: string;
+  current_nonimmigrant_status: string;
+  sevis_id: string;
+  i94_number: string;
+  passport_number: string;
+  passport_issuing_country: string;
+  passport_expiration_date: string;
+  us_mailing_address: string;
+  part4_acknowledged: boolean;
+};
+
+type CosNewDependentFormState = Omit<CosDependentFormState, 'id' | 'relationship'> & {
+  relationship: DashboardCosDependent['relationship'] | '';
+};
+
+type CosUscisLetterResponses = {
+  request_reason: string;
+  academic_background: string;
+  professional_experience: string;
+  course_connection: string;
+  us_activities: string;
+  intent_change_context: string;
+  course_reason: string;
+  school_reason: string;
+  career_benefit: string;
+  financial_support: string;
+  funds_acknowledged: boolean;
+  home_ties: string;
+  post_study_plans: string;
+  knowledge_application: string;
+  f1_rules_ack: boolean;
+  no_unauthorized_work_ack: boolean;
+  true_information_ack: boolean;
+  personal_responsibility_ack: boolean;
+  uscis_official_ack: boolean;
+};
+
+type CosSaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
+type CosSubmissionMethod = DashboardCosCase['submission_method'];
+
+type CosChecklistStatus = 'pending' | 'uploaded' | 'approved' | 'rejected' | 'not_applicable';
+type CosChecklistCategory = 'applicant' | 'dependent' | 'evidence' | 'uscis' | 'internal';
+
+type CosChecklistItem = {
+  id: string;
+  item_key: string;
+  label: string;
+  category: CosChecklistCategory;
+  required: boolean;
+  status: CosChecklistStatus;
+  storage_path: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  dependent_id: string | null;
+  rejection_reason: string | null;
+};
+
+type CosChecklistTemplate = {
+  item_key: string;
+  label: string;
+  category: CosChecklistCategory;
+  required: boolean;
+  dependent_id: string | null;
+};
+
+const COS_I539_REQUIRED_FIELDS: Array<keyof CosI539ApplicantResponses> = [
+  'current_status',
+  'requested_status',
+  'last_entry_date',
+  'i94_number',
+  'passport_number',
+  'passport_issuing_country',
+  'passport_expiration_date',
+  'us_mailing_address',
+  'daytime_phone',
+  'email',
+];
+
+const COS_I539A_REQUIRED_FIELDS: Array<keyof CosDependentFormState> = [
+  'full_name',
+  'relationship',
+  'date_of_birth',
+  'country_of_birth',
+  'country_of_citizenship',
+  'current_nonimmigrant_status',
+  'i94_number',
+  'passport_number',
+  'passport_issuing_country',
+  'passport_expiration_date',
+  'us_mailing_address',
+];
+
+const COS_USCIS_LETTER_REQUIRED_TEXT_FIELDS: Array<keyof CosUscisLetterResponses> = [
+  'request_reason',
+  'academic_background',
+  'professional_experience',
+  'course_connection',
+  'us_activities',
+  'intent_change_context',
+  'course_reason',
+  'school_reason',
+  'career_benefit',
+  'financial_support',
+  'home_ties',
+  'post_study_plans',
+  'knowledge_application',
+];
+
+const COS_USCIS_LETTER_REQUIRED_CHECKBOXES: Array<keyof CosUscisLetterResponses> = [
+  'funds_acknowledged',
+  'f1_rules_ack',
+  'no_unauthorized_work_ack',
+  'true_information_ack',
+  'personal_responsibility_ack',
+  'uscis_official_ack',
+];
+
+const COS_I539_PART4_TOPICS = [
+  'student_dashboard.cos.wizard.i539.part4_topics.asylum',
+  'student_dashboard.cos.wizard.i539.part4_topics.removal',
+  'student_dashboard.cos.wizard.i539.part4_topics.criminal',
+  'student_dashboard.cos.wizard.i539.part4_topics.public_assistance',
+  'student_dashboard.cos.wizard.i539.part4_topics.security',
+  'student_dashboard.cos.wizard.i539.part4_topics.unauthorized_work',
+  'student_dashboard.cos.wizard.i539.part4_topics.status_violation',
+];
+
+function getProfileValue(profile: unknown, key: string) {
+  if (!profile || typeof profile !== 'object') return '';
+  const value = (profile as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function buildInitialCosI539Responses(profile: unknown): CosI539ApplicantResponses {
+  return {
+    current_status: getProfileValue(profile, 'cos_current_status'),
+    requested_status: 'F-1',
+    last_entry_date: getProfileValue(profile, 'cos_last_entry_date'),
+    i94_number: getProfileValue(profile, 'cos_i94_number'),
+    passport_number: '',
+    passport_issuing_country: '',
+    passport_expiration_date: '',
+    us_mailing_address: getProfileValue(profile, 'address'),
+    daytime_phone: getProfileValue(profile, 'phone'),
+    email: getProfileValue(profile, 'email'),
+    part4_acknowledged: false,
+  };
+}
+
+function normalizeCosI539Responses(value: unknown, fallback: CosI539ApplicantResponses): CosI539ApplicantResponses {
+  if (!value || typeof value !== 'object') return fallback;
+  const row = value as Partial<Record<keyof CosI539ApplicantResponses, unknown>>;
+  return {
+    current_status: typeof row.current_status === 'string' ? row.current_status : fallback.current_status,
+    requested_status: typeof row.requested_status === 'string' ? row.requested_status : fallback.requested_status,
+    last_entry_date: typeof row.last_entry_date === 'string' ? row.last_entry_date : fallback.last_entry_date,
+    i94_number: typeof row.i94_number === 'string' ? row.i94_number : fallback.i94_number,
+    passport_number: typeof row.passport_number === 'string' ? row.passport_number : fallback.passport_number,
+    passport_issuing_country: typeof row.passport_issuing_country === 'string' ? row.passport_issuing_country : fallback.passport_issuing_country,
+    passport_expiration_date: typeof row.passport_expiration_date === 'string' ? row.passport_expiration_date : fallback.passport_expiration_date,
+    us_mailing_address: typeof row.us_mailing_address === 'string' ? row.us_mailing_address : fallback.us_mailing_address,
+    daytime_phone: typeof row.daytime_phone === 'string' ? row.daytime_phone : fallback.daytime_phone,
+    email: typeof row.email === 'string' ? row.email : fallback.email,
+    part4_acknowledged: typeof row.part4_acknowledged === 'boolean' ? row.part4_acknowledged : fallback.part4_acknowledged,
+  };
+}
+
+function isCosI539Complete(form: CosI539ApplicantResponses) {
+  return COS_I539_REQUIRED_FIELDS.every(field => String(form[field] ?? '').trim().length > 0) && form.part4_acknowledged;
+}
+
+function buildCosDependentFormState(dependent: DashboardCosDependent, fallbackAddress: string): CosDependentFormState {
+  return {
+    id: dependent.id,
+    full_name: dependent.full_name ?? '',
+    relationship: dependent.relationship ?? 'child',
+    date_of_birth: dependent.date_of_birth ?? '',
+    country_of_birth: dependent.country_of_birth ?? '',
+    country_of_citizenship: dependent.country_of_citizenship ?? '',
+    current_nonimmigrant_status: dependent.current_nonimmigrant_status ?? '',
+    sevis_id: dependent.sevis_id ?? '',
+    i94_number: '',
+    passport_number: '',
+    passport_issuing_country: '',
+    passport_expiration_date: '',
+    us_mailing_address: fallbackAddress,
+    part4_acknowledged: false,
+  };
+}
+
+function buildEmptyCosDependentFormState(fallbackAddress: string): CosNewDependentFormState {
+  return {
+    full_name: '',
+    relationship: '',
+    date_of_birth: '',
+    country_of_birth: '',
+    country_of_citizenship: '',
+    current_nonimmigrant_status: '',
+    sevis_id: '',
+    i94_number: '',
+    passport_number: '',
+    passport_issuing_country: '',
+    passport_expiration_date: '',
+    us_mailing_address: fallbackAddress,
+    part4_acknowledged: false,
+  };
+}
+
+function normalizeCosI539AResponses(value: unknown, fallback: CosDependentFormState): CosDependentFormState {
+  if (!value || typeof value !== 'object') return fallback;
+  const row = value as Partial<Record<keyof CosDependentFormState, unknown>>;
+  return {
+    ...fallback,
+    i94_number: typeof row.i94_number === 'string' ? row.i94_number : fallback.i94_number,
+    passport_number: typeof row.passport_number === 'string' ? row.passport_number : fallback.passport_number,
+    passport_issuing_country: typeof row.passport_issuing_country === 'string' ? row.passport_issuing_country : fallback.passport_issuing_country,
+    passport_expiration_date: typeof row.passport_expiration_date === 'string' ? row.passport_expiration_date : fallback.passport_expiration_date,
+    us_mailing_address: typeof row.us_mailing_address === 'string' ? row.us_mailing_address : fallback.us_mailing_address,
+    part4_acknowledged: typeof row.part4_acknowledged === 'boolean' ? row.part4_acknowledged : fallback.part4_acknowledged,
+  };
+}
+
+function getCosI539AResponses(form: CosDependentFormState) {
+  return {
+    full_name: form.full_name,
+    relationship: form.relationship,
+    date_of_birth: form.date_of_birth,
+    country_of_birth: form.country_of_birth,
+    country_of_citizenship: form.country_of_citizenship,
+    current_nonimmigrant_status: form.current_nonimmigrant_status,
+    sevis_id: form.sevis_id,
+    i94_number: form.i94_number,
+    passport_number: form.passport_number,
+    passport_issuing_country: form.passport_issuing_country,
+    passport_expiration_date: form.passport_expiration_date,
+    us_mailing_address: form.us_mailing_address,
+    part4_acknowledged: form.part4_acknowledged,
+  };
+}
+
+function isCosI539AComplete(form: CosDependentFormState) {
+  const i94Digits = form.i94_number.replace(/\D/g, '');
+  return (
+    COS_I539A_REQUIRED_FIELDS.every(field => String(form[field] ?? '').trim().length > 0) &&
+    i94Digits.length === 11 &&
+    form.part4_acknowledged
+  );
+}
+
+function buildInitialCosUscisLetterResponses(): CosUscisLetterResponses {
+  return {
+    request_reason: '',
+    academic_background: '',
+    professional_experience: '',
+    course_connection: '',
+    us_activities: '',
+    intent_change_context: '',
+    course_reason: '',
+    school_reason: '',
+    career_benefit: '',
+    financial_support: '',
+    funds_acknowledged: false,
+    home_ties: '',
+    post_study_plans: '',
+    knowledge_application: '',
+    f1_rules_ack: false,
+    no_unauthorized_work_ack: false,
+    true_information_ack: false,
+    personal_responsibility_ack: false,
+    uscis_official_ack: false,
+  };
+}
+
+function normalizeCosUscisLetterResponses(value: unknown, fallback: CosUscisLetterResponses): CosUscisLetterResponses {
+  if (!value || typeof value !== 'object') return fallback;
+  const row = value as Partial<Record<keyof CosUscisLetterResponses, unknown>>;
+  return {
+    request_reason: typeof row.request_reason === 'string' ? row.request_reason : fallback.request_reason,
+    academic_background: typeof row.academic_background === 'string' ? row.academic_background : fallback.academic_background,
+    professional_experience: typeof row.professional_experience === 'string' ? row.professional_experience : fallback.professional_experience,
+    course_connection: typeof row.course_connection === 'string' ? row.course_connection : fallback.course_connection,
+    us_activities: typeof row.us_activities === 'string' ? row.us_activities : fallback.us_activities,
+    intent_change_context: typeof row.intent_change_context === 'string' ? row.intent_change_context : fallback.intent_change_context,
+    course_reason: typeof row.course_reason === 'string' ? row.course_reason : fallback.course_reason,
+    school_reason: typeof row.school_reason === 'string' ? row.school_reason : fallback.school_reason,
+    career_benefit: typeof row.career_benefit === 'string' ? row.career_benefit : fallback.career_benefit,
+    financial_support: typeof row.financial_support === 'string' ? row.financial_support : fallback.financial_support,
+    funds_acknowledged: typeof row.funds_acknowledged === 'boolean' ? row.funds_acknowledged : fallback.funds_acknowledged,
+    home_ties: typeof row.home_ties === 'string' ? row.home_ties : fallback.home_ties,
+    post_study_plans: typeof row.post_study_plans === 'string' ? row.post_study_plans : fallback.post_study_plans,
+    knowledge_application: typeof row.knowledge_application === 'string' ? row.knowledge_application : fallback.knowledge_application,
+    f1_rules_ack: typeof row.f1_rules_ack === 'boolean' ? row.f1_rules_ack : fallback.f1_rules_ack,
+    no_unauthorized_work_ack: typeof row.no_unauthorized_work_ack === 'boolean' ? row.no_unauthorized_work_ack : fallback.no_unauthorized_work_ack,
+    true_information_ack: typeof row.true_information_ack === 'boolean' ? row.true_information_ack : fallback.true_information_ack,
+    personal_responsibility_ack: typeof row.personal_responsibility_ack === 'boolean' ? row.personal_responsibility_ack : fallback.personal_responsibility_ack,
+    uscis_official_ack: typeof row.uscis_official_ack === 'boolean' ? row.uscis_official_ack : fallback.uscis_official_ack,
+  };
+}
+
+function isCosUscisLetterComplete(form: CosUscisLetterResponses) {
+  return (
+    form.request_reason.trim().length >= 100 &&
+    COS_USCIS_LETTER_REQUIRED_TEXT_FIELDS.every(field => String(form[field] ?? '').trim().length > 0) &&
+    COS_USCIS_LETTER_REQUIRED_CHECKBOXES.every(field => form[field] === true)
+  );
+}
+
+function getCosUscisLetterTextProgress(form: CosUscisLetterResponses) {
+  return COS_USCIS_LETTER_REQUIRED_TEXT_FIELDS.filter(field => String(form[field] ?? '').trim().length > 0).length;
+}
+
+function getProfileNumber(profile: unknown, key: string) {
+  if (!profile || typeof profile !== 'object') return 0;
+  const value = (profile as Record<string, unknown>)[key];
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseDateOnly(value: string | null | undefined) {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function daysBetween(start: Date, end: Date) {
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
+}
+
+function InfoLine({ label, value }: { label: React.ReactNode; value: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] font-black uppercase tracking-widest text-[#8a7b66] dark:text-gray-500">{label}</div>
+      <div className="mt-1 font-semibold text-[#1f1a14] dark:text-white">{value}</div>
+    </div>
+  );
+}
+
+function sanitizeCosStorageSegment(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+}
+
+function ChangeOfStatusTab({
+  application,
+  cosCase,
+  i20Record,
+  dependents,
+}: {
+  application: DashboardApplication | null;
+  cosCase: DashboardCosCase | null;
+  i20Record: DashboardCosI20Record | null;
+  dependents: DashboardCosDependent[];
+}) {
+  const { userProfile } = useStudentAuth();
+  const { t, i18n } = useTranslation();
+  const wizardRef = useRef<HTMLDivElement | null>(null);
+  const hasUniversityLetter = !!(application?.acceptance_letter_url || application?.acceptance_letter_received_at);
+  const hasRegisteredI20 = !!i20Record;
+  const status = hasRegisteredI20 ? 'unlocked' : 'blocked';
+  const i94Source = cosCase?.i94_expiry_date ?? userProfile?.cos_i94_expiry_date;
+  const i94Date = i94Source
+    ? new Date(i94Source).toLocaleDateString(i18n.language || undefined)
+    : null;
+  const programStartDate = i20Record?.program_start_date
+    ? new Date(i20Record.program_start_date).toLocaleDateString(i18n.language || undefined)
+    : null;
+  const [i539Form, setI539Form] = useState<CosI539ApplicantResponses>(() => buildInitialCosI539Responses(userProfile));
+  const [i539ResponseId, setI539ResponseId] = useState<string | null>(null);
+  const [i539Loaded, setI539Loaded] = useState(false);
+  const [i539Loading, setI539Loading] = useState(false);
+  const [i539SaveState, setI539SaveState] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle');
+  const [i539SaveError, setI539SaveError] = useState<string | null>(null);
+  const [i539AutosavedAt, setI539AutosavedAt] = useState<string | null>(null);
+  const lastSavedI539Ref = useRef<string>('');
+  const dependentAddressFallback = getProfileValue(userProfile, 'address');
+  const [dependentForms, setDependentForms] = useState<CosDependentFormState[]>(() =>
+    dependents.map(dependent => buildCosDependentFormState(dependent, dependentAddressFallback))
+  );
+  const [newDependentForm, setNewDependentForm] = useState<CosNewDependentFormState>(() =>
+    buildEmptyCosDependentFormState(dependentAddressFallback)
+  );
+  const [i539aLoaded, setI539aLoaded] = useState(false);
+  const [i539aLoading, setI539aLoading] = useState(false);
+  const [i539aSaveState, setI539aSaveState] = useState<CosSaveState>('idle');
+  const [i539aSaveError, setI539aSaveError] = useState<string | null>(null);
+  const [i539aAutosavedAt, setI539aAutosavedAt] = useState<string | null>(null);
+  const [i539aResponseIds, setI539aResponseIds] = useState<Record<string, string>>({});
+  const [newDependentSaving, setNewDependentSaving] = useState(false);
+  const [newDependentError, setNewDependentError] = useState<string | null>(null);
+  const lastSavedI539ARef = useRef<Record<string, string>>({});
+  const [checklistItems, setChecklistItems] = useState<CosChecklistItem[]>([]);
+  const [checklistLoading, setChecklistLoading] = useState(false);
+  const [checklistError, setChecklistError] = useState<string | null>(null);
+  const [checklistUploadingKey, setChecklistUploadingKey] = useState<string | null>(null);
+  const [uscisLetterForm, setUscisLetterForm] = useState<CosUscisLetterResponses>(() => buildInitialCosUscisLetterResponses());
+  const [uscisLetterResponseId, setUscisLetterResponseId] = useState<string | null>(null);
+  const [uscisLetterLoaded, setUscisLetterLoaded] = useState(false);
+  const [uscisLetterLoading, setUscisLetterLoading] = useState(false);
+  const [uscisLetterSaveState, setUscisLetterSaveState] = useState<CosSaveState>('idle');
+  const [uscisLetterSaveError, setUscisLetterSaveError] = useState<string | null>(null);
+  const [uscisLetterAutosavedAt, setUscisLetterAutosavedAt] = useState<string | null>(null);
+  const lastSavedUscisLetterRef = useRef<string>('');
+  const [submissionMethod, setSubmissionMethod] = useState<CosSubmissionMethod>(cosCase?.submission_method ?? 'undecided');
+  const [submissionAck, setSubmissionAck] = useState<Record<'online' | 'mail', boolean>>({ online: false, mail: false });
+  const [submissionSaving, setSubmissionSaving] = useState(false);
+  const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
+  const i539Complete = isCosI539Complete(i539Form);
+  const declaredDependentCount = getProfileNumber(userProfile, 'num_dependents');
+  const hasDependents = cosCase?.has_dependents || declaredDependentCount > 0 || dependentForms.length > 0;
+  const mailRequired = hasDependents;
+  const i539aComplete = !hasDependents || (dependentForms.length > 0 && dependentForms.every(isCosI539AComplete));
+  const i94Digits = i539Form.i94_number.replace(/\D/g, '');
+  const i94FormatValid = !i539Form.i94_number.trim() || i94Digits.length === 11;
+  const lastEntryDate = parseDateOnly(i539Form.last_entry_date);
+  const i20IssueDate = parseDateOnly(i20Record?.issued_at);
+  const programStart = parseDateOnly(i20Record?.program_start_date);
+  const i20BeforeEntry = !!(lastEntryDate && i20IssueDate && i20IssueDate < lastEntryDate);
+  const i20CloseToEntry = !!(lastEntryDate && i20IssueDate && !i20BeforeEntry && daysBetween(lastEntryDate, i20IssueDate) < 30);
+  const programBeforeIssue = !!(programStart && i20IssueDate && programStart < i20IssueDate);
+  const programBeforeEntry = !!(programStart && lastEntryDate && programStart < lastEntryDate);
+  const i539ValidationIssues = [
+    !i94FormatValid ? t('student_dashboard.cos.wizard.validation.i94_format') : null,
+    i20BeforeEntry ? t('student_dashboard.cos.wizard.validation.i20_before_entry') : null,
+    i20CloseToEntry ? t('student_dashboard.cos.wizard.validation.i20_close_to_entry') : null,
+    programBeforeIssue ? t('student_dashboard.cos.wizard.validation.program_before_issue') : null,
+    programBeforeEntry ? t('student_dashboard.cos.wizard.validation.program_before_entry') : null,
+  ].filter(Boolean) as string[];
+  const i539StepState = i539Complete && i94FormatValid && !programBeforeIssue && !programBeforeEntry ? 'completed' : hasRegisteredI20 ? 'active' : 'pending';
+  const i539aStepState = hasDependents
+    ? dependentForms.length > 0 ? (i539aComplete ? 'completed' : 'active') : 'attention'
+    : 'not_required';
+  const uscisLetterComplete = isCosUscisLetterComplete(uscisLetterForm);
+  const uscisLetterTextProgress = getCosUscisLetterTextProgress(uscisLetterForm);
+  const uscisLetterStepState = uscisLetterComplete ? 'completed' : hasRegisteredI20 ? 'active' : 'pending';
+  const checklistComplete = checklistItems.length > 0 && checklistItems.every(item =>
+    !item.required || item.status === 'approved' || item.status === 'not_applicable'
+  );
+  const checklistStepState = checklistComplete ? 'completed' : hasRegisteredI20 ? 'active' : 'pending';
+  const submissionMethodComplete = mailRequired
+    ? submissionMethod === 'mail'
+    : submissionMethod === 'online' || submissionMethod === 'mail';
+  const submissionMethodStepState = submissionMethodComplete ? 'completed' : hasRegisteredI20 ? 'active' : 'pending';
+
+  useEffect(() => {
+    setSubmissionMethod(cosCase?.submission_method ?? 'undecided');
+    setSubmissionAck({ online: false, mail: false });
+    setSubmissionMessage(null);
+  }, [cosCase?.id, cosCase?.submission_method]);
+
+  const cosChecklistTemplates = useMemo<CosChecklistTemplate[]>(() => {
+    const templates: CosChecklistTemplate[] = [
+      {
+        item_key: 'applicant_passport_bio',
+        label: t('student_dashboard.cos.wizard.checklist.items.applicant_passport_bio'),
+        category: 'applicant',
+        required: true,
+        dependent_id: null,
+      },
+      {
+        item_key: 'applicant_i94',
+        label: t('student_dashboard.cos.wizard.checklist.items.applicant_i94'),
+        category: 'applicant',
+        required: true,
+        dependent_id: null,
+      },
+      {
+        item_key: 'applicant_status_evidence',
+        label: t('student_dashboard.cos.wizard.checklist.items.applicant_status_evidence'),
+        category: 'applicant',
+        required: true,
+        dependent_id: null,
+      },
+      {
+        item_key: 'applicant_signed_i20',
+        label: t('student_dashboard.cos.wizard.checklist.items.applicant_signed_i20'),
+        category: 'applicant',
+        required: true,
+        dependent_id: null,
+      },
+      {
+        item_key: 'applicant_financial_evidence',
+        label: t('student_dashboard.cos.wizard.checklist.items.applicant_financial_evidence'),
+        category: 'evidence',
+        required: true,
+        dependent_id: null,
+      },
+      {
+        item_key: 'applicant_acceptance_letter',
+        label: t('student_dashboard.cos.wizard.checklist.items.applicant_acceptance_letter'),
+        category: 'evidence',
+        required: true,
+        dependent_id: null,
+      },
+    ];
+
+    dependentForms.forEach((dependent, index) => {
+      const labelName = dependent.full_name || t('student_dashboard.cos.wizard.i539a.dependent_label', { number: index + 1 });
+      templates.push(
+        {
+          item_key: `dependent_${dependent.id}_passport_bio`,
+          label: t('student_dashboard.cos.wizard.checklist.items.dependent_passport_bio', { name: labelName }),
+          category: 'dependent',
+          required: true,
+          dependent_id: dependent.id,
+        },
+        {
+          item_key: `dependent_${dependent.id}_i94`,
+          label: t('student_dashboard.cos.wizard.checklist.items.dependent_i94', { name: labelName }),
+          category: 'dependent',
+          required: true,
+          dependent_id: dependent.id,
+        },
+        {
+          item_key: `dependent_${dependent.id}_status_evidence`,
+          label: t('student_dashboard.cos.wizard.checklist.items.dependent_status_evidence', { name: labelName }),
+          category: 'dependent',
+          required: true,
+          dependent_id: dependent.id,
+        },
+        {
+          item_key: `dependent_${dependent.id}_relationship_evidence`,
+          label: t('student_dashboard.cos.wizard.checklist.items.dependent_relationship_evidence', { name: labelName }),
+          category: 'dependent',
+          required: true,
+          dependent_id: dependent.id,
+        }
+      );
+    });
+
+    return templates;
+  }, [dependentForms, t]);
+
+  const loadI539Response = useCallback(async () => {
+    if (!hasRegisteredI20 || !cosCase?.id || !userProfile?.id) {
+      setI539Loaded(true);
+      return;
+    }
+
+    setI539Loading(true);
+    setI539SaveError(null);
+    const fallback = buildInitialCosI539Responses(userProfile);
+
+    try {
+      const { data, error } = await supabase
+        .from('cos_form_responses')
+        .select('id, responses_json, autosaved_at')
+        .eq('cos_case_id', cosCase.id)
+        .eq('profile_id', userProfile.id)
+        .eq('form_type', 'i539')
+        .eq('section_key', 'applicant')
+        .is('dependent_id', null)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const nextForm = normalizeCosI539Responses(data?.responses_json, fallback);
+      setI539Form(nextForm);
+      setI539ResponseId(typeof data?.id === 'string' ? data.id : null);
+      setI539AutosavedAt(typeof data?.autosaved_at === 'string' ? data.autosaved_at : null);
+      lastSavedI539Ref.current = JSON.stringify(nextForm);
+      setI539SaveState(data ? 'saved' : 'idle');
+    } catch (error) {
+      console.error('Error loading COS I-539 response:', error);
+      setI539Form(fallback);
+      setI539SaveState('error');
+      setI539SaveError(t('student_dashboard.cos.wizard.autosave_load_error'));
+    } finally {
+      setI539Loaded(true);
+      setI539Loading(false);
+    }
+  }, [cosCase?.id, hasRegisteredI20, t, userProfile]);
+
+  useEffect(() => {
+    setI539Loaded(false);
+    void loadI539Response();
+  }, [loadI539Response]);
+
+  const dependentIdsSignature = useMemo(
+    () => dependentForms.map(dependent => dependent.id).join('|'),
+    [dependentForms]
+  );
+
+  useEffect(() => {
+    const nextForms = dependents.map(dependent => buildCosDependentFormState(dependent, dependentAddressFallback));
+    setDependentForms(nextForms);
+    setNewDependentForm(buildEmptyCosDependentFormState(dependentAddressFallback));
+    setI539aLoaded(false);
+    setI539aResponseIds({});
+    setI539aAutosavedAt(null);
+    lastSavedI539ARef.current = {};
+  }, [dependentAddressFallback, dependents]);
+
+  const loadI539AResponses = useCallback(async () => {
+    if (!hasRegisteredI20 || !cosCase?.id || !userProfile?.id || dependentForms.length === 0) {
+      setI539aLoaded(true);
+      return;
+    }
+
+    setI539aLoading(true);
+    setI539aSaveError(null);
+
+    try {
+      const dependentIds = dependentForms.map(dependent => dependent.id);
+      const { data, error } = await supabase
+        .from('cos_form_responses')
+        .select('id, dependent_id, responses_json, autosaved_at')
+        .eq('cos_case_id', cosCase.id)
+        .eq('profile_id', userProfile.id)
+        .eq('form_type', 'i539a')
+        .eq('section_key', 'dependent')
+        .in('dependent_id', dependentIds);
+
+      if (error) throw error;
+
+      const responseByDependentId = new Map<string, { id: string; responses_json: unknown; autosaved_at: string | null }>();
+      (data ?? []).forEach(row => {
+        if (typeof row.dependent_id === 'string' && typeof row.id === 'string') {
+          responseByDependentId.set(row.dependent_id, {
+            id: row.id,
+            responses_json: row.responses_json,
+            autosaved_at: typeof row.autosaved_at === 'string' ? row.autosaved_at : null,
+          });
+        }
+      });
+
+      const nextResponseIds: Record<string, string> = {};
+      let latestAutosave: string | null = null;
+      setDependentForms(prev => prev.map(form => {
+        const stored = responseByDependentId.get(form.id);
+        if (stored) {
+          nextResponseIds[form.id] = stored.id;
+          latestAutosave = stored.autosaved_at ?? latestAutosave;
+        }
+        const nextForm = normalizeCosI539AResponses(stored?.responses_json, form);
+        lastSavedI539ARef.current[form.id] = JSON.stringify(nextForm);
+        return nextForm;
+      }));
+      setI539aResponseIds(nextResponseIds);
+      setI539aAutosavedAt(latestAutosave);
+      setI539aSaveState(responseByDependentId.size > 0 ? 'saved' : 'idle');
+    } catch (error) {
+      console.error('Error loading COS I-539A responses:', error);
+      setI539aSaveState('error');
+      setI539aSaveError(t('student_dashboard.cos.wizard.autosave_load_error'));
+    } finally {
+      setI539aLoaded(true);
+      setI539aLoading(false);
+    }
+  }, [cosCase?.id, dependentForms.length, dependentIdsSignature, hasRegisteredI20, t, userProfile?.id]);
+
+  useEffect(() => {
+    setI539aLoaded(false);
+    void loadI539AResponses();
+  }, [loadI539AResponses]);
+
+  const loadUscisLetterResponse = useCallback(async () => {
+    if (!hasRegisteredI20 || !cosCase?.id || !userProfile?.id) {
+      setUscisLetterLoaded(true);
+      return;
+    }
+
+    setUscisLetterLoading(true);
+    setUscisLetterSaveError(null);
+    const fallback = buildInitialCosUscisLetterResponses();
+
+    try {
+      const { data, error } = await supabase
+        .from('cos_form_responses')
+        .select('id, responses_json, autosaved_at')
+        .eq('cos_case_id', cosCase.id)
+        .eq('profile_id', userProfile.id)
+        .eq('form_type', 'uscis_letter')
+        .eq('section_key', 'guided_letter')
+        .is('dependent_id', null)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const nextForm = normalizeCosUscisLetterResponses(data?.responses_json, fallback);
+      setUscisLetterForm(nextForm);
+      setUscisLetterResponseId(typeof data?.id === 'string' ? data.id : null);
+      setUscisLetterAutosavedAt(typeof data?.autosaved_at === 'string' ? data.autosaved_at : null);
+      lastSavedUscisLetterRef.current = JSON.stringify(nextForm);
+      setUscisLetterSaveState(data ? 'saved' : 'idle');
+    } catch (error) {
+      console.error('Error loading COS USCIS letter response:', error);
+      setUscisLetterForm(fallback);
+      setUscisLetterSaveState('error');
+      setUscisLetterSaveError(t('student_dashboard.cos.wizard.autosave_load_error'));
+    } finally {
+      setUscisLetterLoaded(true);
+      setUscisLetterLoading(false);
+    }
+  }, [cosCase?.id, hasRegisteredI20, t, userProfile?.id]);
+
+  useEffect(() => {
+    setUscisLetterLoaded(false);
+    void loadUscisLetterResponse();
+  }, [loadUscisLetterResponse]);
+
+  const loadCosChecklist = useCallback(async () => {
+    if (!hasRegisteredI20 || !cosCase?.id || !userProfile?.id) {
+      setChecklistItems([]);
+      return;
+    }
+
+    setChecklistLoading(true);
+    setChecklistError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('cos_document_checklist')
+        .select('id, item_key, label, category, required, status, storage_path, file_url, file_name, mime_type, file_size_bytes, dependent_id, rejection_reason')
+        .eq('cos_case_id', cosCase.id)
+        .eq('profile_id', userProfile.id);
+
+      if (error) throw error;
+
+      const existingItems = (data ?? []) as CosChecklistItem[];
+      const existingByKey = new Map(existingItems.map(item => [item.item_key, item]));
+      const missingItems = cosChecklistTemplates.filter(template => !existingByKey.has(template.item_key));
+      let insertedItems: CosChecklistItem[] = [];
+
+      if (missingItems.length > 0) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('cos_document_checklist')
+          .insert(missingItems.map(template => ({
+            cos_case_id: cosCase.id,
+            profile_id: userProfile.id,
+            dependent_id: template.dependent_id,
+            item_key: template.item_key,
+            label: template.label,
+            category: template.category,
+            required: template.required,
+            status: 'pending',
+          })))
+          .select('id, item_key, label, category, required, status, storage_path, file_url, file_name, mime_type, file_size_bytes, dependent_id, rejection_reason');
+
+        if (insertError) throw insertError;
+        insertedItems = (inserted ?? []) as CosChecklistItem[];
+      }
+
+      const allItems = [...existingItems, ...insertedItems];
+      const order = new Map(cosChecklistTemplates.map((template, index) => [template.item_key, index]));
+      setChecklistItems(allItems.sort((a, b) => (order.get(a.item_key) ?? 999) - (order.get(b.item_key) ?? 999)));
+    } catch (error) {
+      console.error('Error loading COS checklist:', error);
+      setChecklistError(t('student_dashboard.cos.wizard.checklist.load_error'));
+    } finally {
+      setChecklistLoading(false);
+    }
+  }, [cosCase?.id, cosChecklistTemplates, hasRegisteredI20, t, userProfile?.id]);
+
+  useEffect(() => {
+    void loadCosChecklist();
+  }, [loadCosChecklist]);
+
+  useEffect(() => {
+    if (!hasRegisteredI20 || !cosCase?.id || !userProfile?.id || !i539Loaded) return;
+
+    const serialized = JSON.stringify(i539Form);
+    if (serialized === lastSavedI539Ref.current) return;
+
+    setI539SaveState('pending');
+    setI539SaveError(null);
+
+    const timer = window.setTimeout(async () => {
+      setI539SaveState('saving');
+      const now = new Date().toISOString();
+      const nextI94Digits = i539Form.i94_number.replace(/\D/g, '');
+      const nextI94Valid = !i539Form.i94_number.trim() || nextI94Digits.length === 11;
+      const nextLastEntryDate = parseDateOnly(i539Form.last_entry_date);
+      const nextI20IssueDate = parseDateOnly(i20Record?.issued_at);
+      const nextProgramStart = parseDateOnly(i20Record?.program_start_date);
+      const hasBlockingDateIssue = !!(
+        nextProgramStart &&
+        ((nextI20IssueDate && nextProgramStart < nextI20IssueDate) ||
+          (nextLastEntryDate && nextProgramStart < nextLastEntryDate))
+      );
+      const completionStatus = isCosI539Complete(i539Form) && nextI94Valid && !hasBlockingDateIssue ? 'completed' : 'in_progress';
+
+      try {
+        if (i539ResponseId) {
+          const { error } = await supabase
+            .from('cos_form_responses')
+            .update({
+              responses_json: i539Form,
+              completion_status: completionStatus,
+              autosaved_at: now,
+              updated_at: now,
+            })
+            .eq('id', i539ResponseId);
+
+          if (error) throw error;
+        } else {
+          const { data, error } = await supabase
+            .from('cos_form_responses')
+            .insert({
+              cos_case_id: cosCase.id,
+              profile_id: userProfile.id,
+              form_type: 'i539',
+              section_key: 'applicant',
+              responses_json: i539Form,
+              completion_status: completionStatus,
+              autosaved_at: now,
+            })
+            .select('id')
+            .single();
+
+          if (error) throw error;
+          setI539ResponseId(data.id);
+        }
+
+        lastSavedI539Ref.current = serialized;
+        setI539AutosavedAt(now);
+        setI539SaveState('saved');
+      } catch (error) {
+        console.error('Error autosaving COS I-539 response:', error);
+        setI539SaveState('error');
+        setI539SaveError(t('student_dashboard.cos.wizard.autosave_error'));
+      }
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [cosCase?.id, hasRegisteredI20, i20Record?.issued_at, i20Record?.program_start_date, i539Form, i539Loaded, i539ResponseId, t, userProfile?.id]);
+
+  useEffect(() => {
+    if (!hasRegisteredI20 || !cosCase?.id || !userProfile?.id || !i539aLoaded || dependentForms.length === 0) return;
+
+    const changedDependents = dependentForms.filter(dependent => {
+      const serialized = JSON.stringify(dependent);
+      return serialized !== lastSavedI539ARef.current[dependent.id];
+    });
+
+    if (changedDependents.length === 0) return;
+
+    setI539aSaveState('pending');
+    setI539aSaveError(null);
+
+    const timer = window.setTimeout(async () => {
+      setI539aSaveState('saving');
+      const now = new Date().toISOString();
+
+      try {
+        const insertedResponseIds: Record<string, string> = {};
+
+        await Promise.all(changedDependents.map(async dependent => {
+          const i94DigitsForDependent = dependent.i94_number.replace(/\D/g, '');
+          const completionStatus = isCosI539AComplete(dependent) && i94DigitsForDependent.length === 11 ? 'completed' : 'in_progress';
+
+          const dependentPayload = {
+            full_name: dependent.full_name,
+            relationship: dependent.relationship,
+            date_of_birth: dependent.date_of_birth || null,
+            country_of_birth: dependent.country_of_birth || null,
+            country_of_citizenship: dependent.country_of_citizenship || null,
+            current_nonimmigrant_status: dependent.current_nonimmigrant_status || null,
+            sevis_id: dependent.sevis_id || null,
+            updated_at: now,
+          };
+
+          const { error: dependentError } = await supabase
+            .from('cos_dependents')
+            .update(dependentPayload)
+            .eq('id', dependent.id);
+
+          if (dependentError) throw dependentError;
+
+          const responsesJson = getCosI539AResponses(dependent);
+          const existingResponseId = i539aResponseIds[dependent.id];
+
+          if (existingResponseId) {
+            const { error } = await supabase
+              .from('cos_form_responses')
+              .update({
+                responses_json: responsesJson,
+                completion_status: completionStatus,
+                autosaved_at: now,
+                updated_at: now,
+              })
+              .eq('id', existingResponseId);
+
+            if (error) throw error;
+          } else {
+            const { data, error } = await supabase
+              .from('cos_form_responses')
+              .insert({
+                cos_case_id: cosCase.id,
+                profile_id: userProfile.id,
+                dependent_id: dependent.id,
+                form_type: 'i539a',
+                section_key: 'dependent',
+                responses_json: responsesJson,
+                completion_status: completionStatus,
+                autosaved_at: now,
+              })
+              .select('id')
+              .single();
+
+            if (error) throw error;
+            insertedResponseIds[dependent.id] = data.id;
+          }
+
+          lastSavedI539ARef.current[dependent.id] = JSON.stringify(dependent);
+        }));
+
+        if (Object.keys(insertedResponseIds).length > 0) {
+          setI539aResponseIds(prev => ({ ...prev, ...insertedResponseIds }));
+        }
+        setI539aAutosavedAt(now);
+        setI539aSaveState('saved');
+      } catch (error) {
+        console.error('Error autosaving COS I-539A responses:', error);
+        setI539aSaveState('error');
+        setI539aSaveError(t('student_dashboard.cos.wizard.autosave_error'));
+      }
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [cosCase?.id, dependentForms, hasRegisteredI20, i539aLoaded, i539aResponseIds, t, userProfile?.id]);
+
+  useEffect(() => {
+    if (!hasRegisteredI20 || !cosCase?.id || !userProfile?.id || !uscisLetterLoaded) return;
+
+    const serialized = JSON.stringify(uscisLetterForm);
+    if (serialized === lastSavedUscisLetterRef.current) return;
+
+    setUscisLetterSaveState('pending');
+    setUscisLetterSaveError(null);
+
+    const timer = window.setTimeout(async () => {
+      setUscisLetterSaveState('saving');
+      const now = new Date().toISOString();
+      const completionStatus = isCosUscisLetterComplete(uscisLetterForm) ? 'completed' : 'in_progress';
+
+      try {
+        if (uscisLetterResponseId) {
+          const { error } = await supabase
+            .from('cos_form_responses')
+            .update({
+              responses_json: uscisLetterForm,
+              completion_status: completionStatus,
+              autosaved_at: now,
+              updated_at: now,
+            })
+            .eq('id', uscisLetterResponseId);
+
+          if (error) throw error;
+        } else {
+          const { data, error } = await supabase
+            .from('cos_form_responses')
+            .insert({
+              cos_case_id: cosCase.id,
+              profile_id: userProfile.id,
+              form_type: 'uscis_letter',
+              section_key: 'guided_letter',
+              responses_json: uscisLetterForm,
+              completion_status: completionStatus,
+              autosaved_at: now,
+            })
+            .select('id')
+            .single();
+
+          if (error) throw error;
+          setUscisLetterResponseId(data.id);
+        }
+
+        lastSavedUscisLetterRef.current = serialized;
+        setUscisLetterAutosavedAt(now);
+        setUscisLetterSaveState('saved');
+      } catch (error) {
+        console.error('Error autosaving COS USCIS letter response:', error);
+        setUscisLetterSaveState('error');
+        setUscisLetterSaveError(t('student_dashboard.cos.wizard.autosave_error'));
+      }
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [cosCase?.id, hasRegisteredI20, t, uscisLetterForm, uscisLetterLoaded, uscisLetterResponseId, userProfile?.id]);
+
+  const handleI539Change = (field: keyof CosI539ApplicantResponses, value: string | boolean) => {
+    setI539Form(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleUscisLetterChange = (field: keyof CosUscisLetterResponses, value: string | boolean) => {
+    setUscisLetterForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleDependentChange = (dependentId: string, field: keyof CosDependentFormState, value: string | boolean) => {
+    setDependentForms(prev => prev.map(dependent =>
+      dependent.id === dependentId ? { ...dependent, [field]: value } : dependent
+    ));
+  };
+
+  const handleNewDependentChange = (field: keyof CosNewDependentFormState, value: string | boolean) => {
+    setNewDependentForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateDependent = async () => {
+    if (!cosCase?.id || !userProfile?.id || !newDependentForm.full_name.trim() || !newDependentForm.relationship) return;
+
+    setNewDependentSaving(true);
+    setNewDependentError(null);
+    const now = new Date().toISOString();
+
+    try {
+      const { data, error } = await supabase
+        .from('cos_dependents')
+        .insert({
+          cos_case_id: cosCase.id,
+          profile_id: userProfile.id,
+          full_name: newDependentForm.full_name,
+          relationship: newDependentForm.relationship,
+          date_of_birth: newDependentForm.date_of_birth || null,
+          country_of_birth: newDependentForm.country_of_birth || null,
+          country_of_citizenship: newDependentForm.country_of_citizenship || null,
+          current_nonimmigrant_status: newDependentForm.current_nonimmigrant_status || null,
+          sevis_id: newDependentForm.sevis_id || null,
+          i539a_required: true,
+          sort_order: dependentForms.length,
+        })
+        .select('id, full_name, relationship, date_of_birth, country_of_birth, country_of_citizenship, current_nonimmigrant_status, sevis_id, i539a_required, sort_order')
+        .single();
+
+      if (error) throw error;
+
+      const { error: caseError } = await supabase
+        .from('cos_cases')
+        .update({ has_dependents: true, submission_method: 'mail', updated_at: now })
+        .eq('id', cosCase.id);
+
+      if (caseError) throw caseError;
+
+      const insertedDependent = data as DashboardCosDependent;
+      const nextDependent = {
+        ...buildCosDependentFormState(insertedDependent, dependentAddressFallback),
+        ...newDependentForm,
+        id: insertedDependent.id,
+        relationship: insertedDependent.relationship,
+      };
+      const completionStatus = isCosI539AComplete(nextDependent) ? 'completed' : 'in_progress';
+      const { data: responseData, error: responseError } = await supabase
+        .from('cos_form_responses')
+        .insert({
+          cos_case_id: cosCase.id,
+          profile_id: userProfile.id,
+          dependent_id: insertedDependent.id,
+          form_type: 'i539a',
+          section_key: 'dependent',
+          responses_json: getCosI539AResponses(nextDependent),
+          completion_status: completionStatus,
+          autosaved_at: now,
+        })
+        .select('id')
+        .single();
+
+      if (responseError) throw responseError;
+
+      setDependentForms(prev => [...prev, nextDependent]);
+      setI539aResponseIds(prev => ({ ...prev, [insertedDependent.id]: responseData.id }));
+      lastSavedI539ARef.current[insertedDependent.id] = JSON.stringify(nextDependent);
+      setI539aAutosavedAt(now);
+      setI539aSaveState('saved');
+      setNewDependentForm(buildEmptyCosDependentFormState(dependentAddressFallback));
+      setI539aLoaded(true);
+    } catch (error) {
+      console.error('Error creating COS dependent:', error);
+      setNewDependentError(t('student_dashboard.cos.wizard.i539a.create_error'));
+    } finally {
+      setNewDependentSaving(false);
+    }
+  };
+
+  const handleChecklistUpload = async (item: CosChecklistItem, file: File) => {
+    if (!cosCase?.id || !userProfile?.id) return;
+
+    const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png']);
+    if (!allowedTypes.has(file.type)) {
+      setChecklistError(t('student_dashboard.cos.wizard.checklist.file_type_error'));
+      return;
+    }
+
+    const maxSizeBytes = 20 * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      setChecklistError(t('student_dashboard.cos.wizard.checklist.file_size_error'));
+      return;
+    }
+
+    setChecklistUploadingKey(item.item_key);
+    setChecklistError(null);
+
+    try {
+      const extension = sanitizeCosStorageSegment(file.name.split('.').pop() || 'pdf');
+      const path = `${userProfile.id}/${cosCase.id}/checklist/${sanitizeCosStorageSegment(item.item_key)}-${Date.now()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from('cos-documents')
+        .upload(path, file, { contentType: file.type, upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('cos_document_checklist')
+        .update({
+          status: 'uploaded',
+          storage_path: path,
+          file_url: `cos-documents/${path}`,
+          file_name: file.name,
+          mime_type: file.type,
+          file_size_bytes: file.size,
+          rejection_reason: null,
+          updated_at: now,
+        })
+        .eq('id', item.id)
+        .select('id, item_key, label, category, required, status, storage_path, file_url, file_name, mime_type, file_size_bytes, dependent_id, rejection_reason')
+        .single();
+
+      if (error) throw error;
+
+      setChecklistItems(prev => prev.map(current => current.id === item.id ? data as CosChecklistItem : current));
+    } catch (error) {
+      console.error('Error uploading COS checklist file:', error);
+      setChecklistError(t('student_dashboard.cos.wizard.checklist.upload_error'));
+    } finally {
+      setChecklistUploadingKey(null);
+    }
+  };
+
+  const handleSelectSubmissionMethod = async (method: Exclude<CosSubmissionMethod, 'undecided'>) => {
+    if (!cosCase?.id || !userProfile?.id || (mailRequired && method !== 'mail')) return;
+
+    setSubmissionSaving(true);
+    setSubmissionMessage(null);
+    const now = new Date().toISOString();
+
+    try {
+      const { error } = await supabase
+        .from('cos_cases')
+        .update({
+          submission_method: method,
+          current_step: 'submission_method',
+          updated_at: now,
+        })
+        .eq('id', cosCase.id)
+        .eq('profile_id', userProfile.id);
+
+      if (error) throw error;
+
+      setSubmissionMethod(method);
+      setSubmissionMessage(t(`student_dashboard.cos.wizard.submission_method.saved_${method}`));
+    } catch (error) {
+      console.error('Error saving COS submission method:', error);
+      setSubmissionMessage(t('student_dashboard.cos.wizard.submission_method.save_error'));
+    } finally {
+      setSubmissionSaving(false);
+    }
+  };
+
+  const scrollToWizard = () => {
+    wizardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const autosaveLabel = (() => {
+    if (i539Loading) return t('student_dashboard.cos.wizard.loading');
+    if (i539SaveState === 'pending') return t('student_dashboard.cos.wizard.autosave_pending');
+    if (i539SaveState === 'saving') return t('student_dashboard.cos.wizard.autosave_saving');
+    if (i539SaveState === 'saved' && i539AutosavedAt) {
+      return t('student_dashboard.cos.wizard.autosave_saved_at', {
+        time: new Date(i539AutosavedAt).toLocaleTimeString(i18n.language || undefined, { hour: '2-digit', minute: '2-digit' }),
+      });
+    }
+    if (i539SaveState === 'error') return i539SaveError ?? t('student_dashboard.cos.wizard.autosave_error');
+    return t('student_dashboard.cos.wizard.autosave_idle');
+  })();
+
+  const i539aAutosaveLabel = (() => {
+    if (i539aLoading) return t('student_dashboard.cos.wizard.loading');
+    if (i539aSaveState === 'pending') return t('student_dashboard.cos.wizard.autosave_pending');
+    if (i539aSaveState === 'saving') return t('student_dashboard.cos.wizard.autosave_saving');
+    if (i539aSaveState === 'saved' && i539aAutosavedAt) {
+      return t('student_dashboard.cos.wizard.autosave_saved_at', {
+        time: new Date(i539aAutosavedAt).toLocaleTimeString(i18n.language || undefined, { hour: '2-digit', minute: '2-digit' }),
+      });
+    }
+    if (i539aSaveState === 'error') return i539aSaveError ?? t('student_dashboard.cos.wizard.autosave_error');
+    return t('student_dashboard.cos.wizard.autosave_idle');
+  })();
+
+  const uscisLetterAutosaveLabel = (() => {
+    if (uscisLetterLoading) return t('student_dashboard.cos.wizard.loading');
+    if (uscisLetterSaveState === 'pending') return t('student_dashboard.cos.wizard.autosave_pending');
+    if (uscisLetterSaveState === 'saving') return t('student_dashboard.cos.wizard.autosave_saving');
+    if (uscisLetterSaveState === 'saved' && uscisLetterAutosavedAt) {
+      return t('student_dashboard.cos.wizard.autosave_saved_at', {
+        time: new Date(uscisLetterAutosavedAt).toLocaleTimeString(i18n.language || undefined, { hour: '2-digit', minute: '2-digit' }),
+      });
+    }
+    if (uscisLetterSaveState === 'error') return uscisLetterSaveError ?? t('student_dashboard.cos.wizard.autosave_error');
+    return t('student_dashboard.cos.wizard.autosave_idle');
+  })();
+
+  const steps = [
+    { key: 'i539', label: t('student_dashboard.cos.steps.i539'), state: i539StepState },
+    { key: 'i539a', label: t('student_dashboard.cos.steps.i539a'), state: i539aStepState },
+    { key: 'uscis_letter', label: t('student_dashboard.cos.steps.uscis_letter'), state: uscisLetterStepState },
+    { key: 'checklist', label: t('student_dashboard.cos.steps.checklist'), state: checklistStepState },
+    { key: 'submission_method', label: t('student_dashboard.cos.steps.submission_method'), state: submissionMethodStepState },
+    { key: 'generation_submission', label: t('student_dashboard.cos.steps.submission'), state: 'pending' },
+  ];
+
+  return (
+    <div data-tour="student-cos-page" className="mx-auto max-w-6xl space-y-5">
+      <div data-tour="student-cos-header" className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <Badge className="mb-3 border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]">
+            {t('student_dashboard.cos.badge')}
+          </Badge>
+          <h2 className="text-2xl font-black tracking-tight">
+            {t('student_dashboard.cos.title')}
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-[#6f6251] dark:text-gray-400">
+            {t('student_dashboard.cos.subtitle')}
+          </p>
+        </div>
+        <Badge
+          className={cn(
+            'w-fit border px-3 py-1 text-xs font-black uppercase tracking-widest',
+            status === 'blocked'
+              ? 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+              : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+          )}
+        >
+          {status === 'blocked'
+            ? t('student_dashboard.cos.status_blocked')
+            : t('student_dashboard.cos.status_unlocked')}
+        </Badge>
+      </div>
+
+      <Card data-tour="student-cos-status-card" className="border-[#e3d5bd] bg-white text-[#1f1a14] dark:border-white/10 dark:bg-[#111] dark:text-white">
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex gap-4">
+              <div className={cn(
+                'flex h-12 w-12 shrink-0 items-center justify-center rounded-lg',
+                status === 'blocked' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+              )}>
+                {status === 'blocked' ? <Clock className="h-6 w-6" /> : <CheckCircle2 className="h-6 w-6" />}
+              </div>
+              <div>
+                <h3 className="text-lg font-black">
+                  {status === 'blocked'
+                    ? t('student_dashboard.cos.locked_title')
+                    : t('student_dashboard.cos.unlocked_title')}
+                </h3>
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                  {status === 'blocked'
+                    ? t('student_dashboard.cos.locked_desc')
+                    : t('student_dashboard.cos.unlocked_desc')}
+                </p>
+              </div>
+            </div>
+            <Button onClick={scrollToWizard} disabled={!hasRegisteredI20} className="w-full bg-[#CE9F48] text-black hover:bg-[#b8892f] disabled:opacity-60 sm:w-auto">
+              <FileSignature className="h-4 w-4" />
+              {t('student_dashboard.cos.start_button')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <Card data-tour="student-cos-steps" className="border-[#e3d5bd] bg-white text-[#1f1a14] dark:border-white/10 dark:bg-[#111] dark:text-white">
+          <CardHeader>
+            <CardTitle className="text-base font-black">
+              {t('student_dashboard.cos.progress_title')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {steps.map((step, index) => (
+              <div key={step.key} className="flex items-center gap-3 rounded-lg border border-[#e3d5bd] bg-[#fffaf0] px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#f3ead9] text-xs font-black text-[#6f6251] dark:bg-white/5 dark:text-gray-400">
+                  {step.state === 'completed' ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" /> : index + 1}
+                </div>
+                <span className="min-w-0 flex-1 text-sm font-bold">{step.label}</span>
+                <Badge className={cn(
+                  step.state === 'completed'
+                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                    : step.state === 'attention'
+                      ? 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                    : step.state === 'active'
+                      ? 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'
+                      : step.state === 'not_required'
+                        ? 'border-slate-500/20 bg-slate-500/10 text-slate-600 dark:text-slate-300'
+                        : 'border-[#e3d5bd] bg-white text-[#8a7b66] dark:border-white/10 dark:bg-white/5 dark:text-gray-400'
+                )}>
+                  {step.state === 'completed'
+                    ? t('student_dashboard.cos.completed')
+                    : step.state === 'attention'
+                      ? t('student_dashboard.cos.attention')
+                    : step.state === 'active'
+                      ? t('student_dashboard.cos.active')
+                      : step.state === 'not_required'
+                        ? t('student_dashboard.cos.not_required')
+                        : t('student_dashboard.cos.pending')}
+                </Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card data-tour="student-cos-readiness" className="border-[#e3d5bd] bg-white text-[#1f1a14] dark:border-white/10 dark:bg-[#111] dark:text-white">
+            <CardHeader>
+              <CardTitle className="text-base font-black">
+                {t('student_dashboard.cos.readiness_title')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e3d5bd] bg-[#fffaf0] px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+                <span className="text-sm font-semibold">{t('student_dashboard.cos.i20_registered')}</span>
+                <Badge className={hasRegisteredI20 ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300'}>
+                  {hasRegisteredI20
+                    ? t('student_dashboard.cos.available')
+                    : t('student_dashboard.cos.waiting')}
+                </Badge>
+              </div>
+              {i20Record && (
+                <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] px-3 py-3 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold">{i20Record.school_name}</span>
+                    <span className="font-mono text-xs text-[#6f6251] dark:text-gray-400">{i20Record.sevis_id}</span>
+                  </div>
+                  {programStartDate && (
+                    <p className="mt-1 text-xs font-medium text-[#6f6251] dark:text-gray-400">
+                      {t('student_dashboard.cos.program_start_date', 'Program start')}: {programStartDate}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e3d5bd] bg-[#fffaf0] px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+                <span className="text-sm font-semibold">{t('student_dashboard.cos.acceptance_letter')}</span>
+                <Badge className={hasUniversityLetter ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-[#e3d5bd] bg-white text-[#8a7b66] dark:border-white/10 dark:bg-white/5 dark:text-gray-400'}>
+                  {hasUniversityLetter
+                    ? t('student_dashboard.cos.available')
+                    : t('student_dashboard.cos.waiting')}
+                </Badge>
+              </div>
+              {i94Date && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e3d5bd] bg-[#fffaf0] px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+                  <span className="text-sm font-semibold">{t('student_dashboard.cos.i94_expiry')}</span>
+                  <span className="text-sm font-black tabular-nums">{i94Date}</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div data-tour="student-cos-upl" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
+            <div className="mb-2 flex items-center gap-2 font-black">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {t('student_dashboard.cos.upl_title')}
+            </div>
+            <p className="leading-relaxed">
+              {t('student_dashboard.cos.upl_desc')}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {hasRegisteredI20 && cosCase && (
+        <Card ref={wizardRef} data-tour="student-cos-wizard" className="border-[#e3d5bd] bg-white text-[#1f1a14] dark:border-white/10 dark:bg-[#111] dark:text-white">
+          <CardHeader className="border-b border-[#f3ead9] dark:border-white/10">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg font-black">
+                  <FileSignature className="h-5 w-5 text-[#9a6a16] dark:text-[#CE9F48]" />
+                  {t('student_dashboard.cos.wizard.title')}
+                </CardTitle>
+                <p className="mt-1 max-w-2xl text-sm text-[#6f6251] dark:text-gray-400">
+                  {t('student_dashboard.cos.wizard.subtitle')}
+                </p>
+              </div>
+              <Badge className={cn(
+                'w-fit border px-3 py-1 text-xs font-black',
+                i539SaveState === 'error'
+                  ? 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300'
+                  : i539SaveState === 'saved'
+                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                    : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'
+              )}>
+                {i539SaveState === 'saving' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                {autosaveLabel}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6 p-5">
+            <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
+              <div className="mb-2 flex items-center gap-2 font-black">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {t('student_dashboard.cos.upl_title')}
+              </div>
+              <p className="leading-relaxed">
+                {t('student_dashboard.cos.wizard.upl_full')}
+              </p>
+            </div>
+
+            {i539ValidationIssues.length > 0 && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
+                <div className="mb-2 flex items-center gap-2 font-black">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {t('student_dashboard.cos.wizard.validation.title')}
+                </div>
+                <ul className="space-y-1.5">
+                  {i539ValidationIssues.map(issue => (
+                    <li key={issue} className="flex gap-2">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                      <span>{issue}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <div className="space-y-3">
+                <div className="rounded-lg border border-[#CE9F48]/30 bg-[#CE9F48]/10 p-4">
+                  <div className="text-xs font-black uppercase tracking-widest text-[#9a6a16] dark:text-[#CE9F48]">
+                    {t('student_dashboard.cos.wizard.current_section')}
+                  </div>
+                  <h3 className="mt-2 text-xl font-black">
+                    {t('student_dashboard.cos.wizard.i539.title')}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                    {t('student_dashboard.cos.wizard.i539.desc')}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                  <h4 className="text-sm font-black">
+                    {t('student_dashboard.cos.wizard.part4_title')}
+                  </h4>
+                  <p className="mt-2 text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                    {t('student_dashboard.cos.wizard.part4_desc')}
+                  </p>
+                  <ul className="mt-3 space-y-2 text-sm text-[#4b4032] dark:text-gray-300">
+                    {COS_I539_PART4_TOPICS.map(key => (
+                      <li key={key} className="flex gap-2">
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#CE9F48]" />
+                        <span>{t(key)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <a
+                    href="https://www.uscis.gov/i-539"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-black text-[#9a6a16] hover:underline dark:text-[#CE9F48]"
+                  >
+                    {t('student_dashboard.cos.wizard.uscis_link')}
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="cos-current-status">{t('student_dashboard.cos.wizard.i539.current_status')}</Label>
+                    <Input
+                      id="cos-current-status"
+                      value={i539Form.current_status}
+                      onChange={event => handleI539Change('current_status', event.target.value)}
+                      placeholder="B-1/B-2"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="cos-requested-status">{t('student_dashboard.cos.wizard.i539.requested_status')}</Label>
+                    <Input
+                      id="cos-requested-status"
+                      value={i539Form.requested_status}
+                      onChange={event => handleI539Change('requested_status', event.target.value)}
+                      placeholder="F-1"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="cos-last-entry">{t('student_dashboard.cos.wizard.i539.last_entry_date')}</Label>
+                    <Input
+                      id="cos-last-entry"
+                      type="date"
+                      value={i539Form.last_entry_date}
+                      onChange={event => handleI539Change('last_entry_date', event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="cos-i94-number">{t('student_dashboard.cos.wizard.i539.i94_number')}</Label>
+                    <Input
+                      id="cos-i94-number"
+                      value={i539Form.i94_number}
+                      onChange={event => handleI539Change('i94_number', event.target.value)}
+                      placeholder="12345678901"
+                      className={!i94FormatValid ? 'border-amber-500 focus-visible:ring-amber-500' : undefined}
+                    />
+                    <p className={cn('text-xs', i94FormatValid ? 'text-[#6f6251] dark:text-gray-400' : 'font-semibold text-amber-700 dark:text-amber-300')}>
+                      {t('student_dashboard.cos.wizard.i539.i94_hint')}
+                    </p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="cos-passport-number">{t('student_dashboard.cos.wizard.i539.passport_number')}</Label>
+                    <Input
+                      id="cos-passport-number"
+                      value={i539Form.passport_number}
+                      onChange={event => handleI539Change('passport_number', event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="cos-passport-country">{t('student_dashboard.cos.wizard.i539.passport_country')}</Label>
+                    <Input
+                      id="cos-passport-country"
+                      value={i539Form.passport_issuing_country}
+                      onChange={event => handleI539Change('passport_issuing_country', event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="cos-passport-expiration">{t('student_dashboard.cos.wizard.i539.passport_expiration')}</Label>
+                    <Input
+                      id="cos-passport-expiration"
+                      type="date"
+                      value={i539Form.passport_expiration_date}
+                      onChange={event => handleI539Change('passport_expiration_date', event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="cos-phone">{t('student_dashboard.cos.wizard.i539.phone')}</Label>
+                    <Input
+                      id="cos-phone"
+                      value={i539Form.daytime_phone}
+                      onChange={event => handleI539Change('daytime_phone', event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2 sm:col-span-2">
+                    <Label htmlFor="cos-email">{t('student_dashboard.cos.wizard.i539.email')}</Label>
+                    <Input
+                      id="cos-email"
+                      type="email"
+                      value={i539Form.email}
+                      onChange={event => handleI539Change('email', event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2 sm:col-span-2">
+                    <Label htmlFor="cos-us-address">{t('student_dashboard.cos.wizard.i539.us_address')}</Label>
+                    <Textarea
+                      id="cos-us-address"
+                      value={i539Form.us_mailing_address}
+                      onChange={event => handleI539Change('us_mailing_address', event.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                </div>
+
+                <label className="flex gap-3 rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-[#CE9F48]"
+                    checked={i539Form.part4_acknowledged}
+                    onChange={event => handleI539Change('part4_acknowledged', event.target.checked)}
+                  />
+                  <span className="leading-relaxed text-[#4b4032] dark:text-gray-300">
+                    {t('student_dashboard.cos.wizard.part4_ack')}
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-widest text-[#9a6a16] dark:text-[#CE9F48]">
+                    {t('student_dashboard.cos.steps.i539a')}
+                  </div>
+                  <h3 className="mt-2 text-lg font-black">
+                    {hasDependents
+                      ? t('student_dashboard.cos.wizard.i539a.title_required')
+                      : t('student_dashboard.cos.wizard.i539a.title_not_required')}
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                    {hasDependents
+                      ? t('student_dashboard.cos.wizard.i539a.desc_required')
+                      : t('student_dashboard.cos.wizard.i539a.desc_not_required')}
+                  </p>
+                </div>
+                <Badge className={hasDependents ? 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'border-slate-500/20 bg-slate-500/10 text-slate-600 dark:text-slate-300'}>
+                  {hasDependents
+                    ? t('student_dashboard.cos.wizard.i539a.mail_required')
+                    : t('student_dashboard.cos.not_required')}
+                </Badge>
+              </div>
+
+              {hasDependents && (
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+                    {t('student_dashboard.cos.wizard.i539a.mail_notice')}
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h4 className="text-sm font-black">
+                      {t('student_dashboard.cos.wizard.i539a.dependents_title')}
+                    </h4>
+                    {dependentForms.length > 0 && (
+                      <Badge className={cn(
+                        'w-fit border px-3 py-1 text-xs font-black',
+                        i539aSaveState === 'error'
+                          ? 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300'
+                          : i539aSaveState === 'saved'
+                            ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                            : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'
+                      )}>
+                        {i539aSaveState === 'saving' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                        {i539aAutosaveLabel}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {dependentForms.length > 0 ? (
+                    <div className="space-y-4">
+                      {dependentForms.map((dependent, index) => {
+                        const dependentI94Valid = !dependent.i94_number.trim() || dependent.i94_number.replace(/\D/g, '').length === 11;
+                        return (
+                          <div key={dependent.id} className="rounded-lg border border-[#e3d5bd] bg-white p-4 text-sm dark:border-white/10 dark:bg-black/20">
+                            <div className="mb-4 flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-xs font-black uppercase tracking-widest text-[#9a6a16] dark:text-[#CE9F48]">
+                                  {t('student_dashboard.cos.wizard.i539a.dependent_label', { number: index + 1 })}
+                                </div>
+                                <div className="mt-1 font-black">{dependent.full_name || t('student_dashboard.cos.wizard.i539a.unnamed_dependent')}</div>
+                              </div>
+                              <Badge className={isCosI539AComplete(dependent) ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'}>
+                                {isCosI539AComplete(dependent)
+                                  ? t('student_dashboard.cos.completed')
+                                  : t('student_dashboard.cos.active')}
+                              </Badge>
+                            </div>
+
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-name-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539a.full_name')}</Label>
+                                <Input id={`cos-dependent-name-${dependent.id}`} value={dependent.full_name} onChange={event => handleDependentChange(dependent.id, 'full_name', event.target.value)} />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-relationship-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539a.relationship_label')}</Label>
+                                <select id={`cos-dependent-relationship-${dependent.id}`} value={dependent.relationship} onChange={event => handleDependentChange(dependent.id, 'relationship', event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                  <option value="spouse">{t('student_dashboard.cos.wizard.i539a.relationship.spouse')}</option>
+                                  <option value="child">{t('student_dashboard.cos.wizard.i539a.relationship.child')}</option>
+                                  <option value="other">{t('student_dashboard.cos.wizard.i539a.relationship.other')}</option>
+                                </select>
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-dob-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539a.birth_date')}</Label>
+                                <Input id={`cos-dependent-dob-${dependent.id}`} type="date" value={dependent.date_of_birth} onChange={event => handleDependentChange(dependent.id, 'date_of_birth', event.target.value)} />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-status-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539.current_status')}</Label>
+                                <Input id={`cos-dependent-status-${dependent.id}`} value={dependent.current_nonimmigrant_status} onChange={event => handleDependentChange(dependent.id, 'current_nonimmigrant_status', event.target.value)} placeholder="B-2" />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-birth-country-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539a.country_of_birth')}</Label>
+                                <Input id={`cos-dependent-birth-country-${dependent.id}`} value={dependent.country_of_birth} onChange={event => handleDependentChange(dependent.id, 'country_of_birth', event.target.value)} />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-citizenship-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539a.country_of_citizenship')}</Label>
+                                <Input id={`cos-dependent-citizenship-${dependent.id}`} value={dependent.country_of_citizenship} onChange={event => handleDependentChange(dependent.id, 'country_of_citizenship', event.target.value)} />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-sevis-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539a.sevis_id')}</Label>
+                                <Input id={`cos-dependent-sevis-${dependent.id}`} value={dependent.sevis_id} onChange={event => handleDependentChange(dependent.id, 'sevis_id', event.target.value)} placeholder="N00..." />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-i94-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539.i94_number')}</Label>
+                                <Input id={`cos-dependent-i94-${dependent.id}`} value={dependent.i94_number} onChange={event => handleDependentChange(dependent.id, 'i94_number', event.target.value)} placeholder="12345678901" className={!dependentI94Valid ? 'border-amber-500 focus-visible:ring-amber-500' : undefined} />
+                                <p className={cn('text-xs', dependentI94Valid ? 'text-[#6f6251] dark:text-gray-400' : 'font-semibold text-amber-700 dark:text-amber-300')}>
+                                  {t('student_dashboard.cos.wizard.i539.i94_hint')}
+                                </p>
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-passport-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539.passport_number')}</Label>
+                                <Input id={`cos-dependent-passport-${dependent.id}`} value={dependent.passport_number} onChange={event => handleDependentChange(dependent.id, 'passport_number', event.target.value)} />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-passport-country-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539.passport_country')}</Label>
+                                <Input id={`cos-dependent-passport-country-${dependent.id}`} value={dependent.passport_issuing_country} onChange={event => handleDependentChange(dependent.id, 'passport_issuing_country', event.target.value)} />
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor={`cos-dependent-passport-expiration-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539.passport_expiration')}</Label>
+                                <Input id={`cos-dependent-passport-expiration-${dependent.id}`} type="date" value={dependent.passport_expiration_date} onChange={event => handleDependentChange(dependent.id, 'passport_expiration_date', event.target.value)} />
+                              </div>
+                              <div className="grid gap-2 sm:col-span-2">
+                                <Label htmlFor={`cos-dependent-address-${dependent.id}`}>{t('student_dashboard.cos.wizard.i539.us_address')}</Label>
+                                <Textarea id={`cos-dependent-address-${dependent.id}`} value={dependent.us_mailing_address} onChange={event => handleDependentChange(dependent.id, 'us_mailing_address', event.target.value)} rows={3} />
+                              </div>
+                            </div>
+
+                            <label className="mt-4 flex gap-3 rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                              <input type="checkbox" className="mt-1 h-4 w-4 rounded border-[#CE9F48]" checked={dependent.part4_acknowledged} onChange={event => handleDependentChange(dependent.id, 'part4_acknowledged', event.target.checked)} />
+                              <span className="leading-relaxed text-[#4b4032] dark:text-gray-300">
+                                {t('student_dashboard.cos.wizard.part4_ack')}
+                              </span>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-amber-500/30 bg-white p-4 text-sm text-[#6f6251] dark:bg-black/20 dark:text-gray-300">
+                      {t('student_dashboard.cos.wizard.i539a.no_dependents_registered', { count: declaredDependentCount })}
+                    </div>
+                  )}
+
+                  <div className="rounded-lg border border-dashed border-[#CE9F48]/40 bg-white p-4 dark:bg-black/20">
+                    <h4 className="text-sm font-black">
+                      {t('student_dashboard.cos.wizard.i539a.add_title')}
+                    </h4>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-new-dependent-name">{t('student_dashboard.cos.wizard.i539a.full_name')}</Label>
+                        <Input id="cos-new-dependent-name" value={newDependentForm.full_name} onChange={event => handleNewDependentChange('full_name', event.target.value)} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-new-dependent-relationship">{t('student_dashboard.cos.wizard.i539a.relationship_label')}</Label>
+                        <select id="cos-new-dependent-relationship" value={newDependentForm.relationship} onChange={event => handleNewDependentChange('relationship', event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          <option value="">{t('student_dashboard.cos.wizard.i539a.select_relationship')}</option>
+                          <option value="spouse">{t('student_dashboard.cos.wizard.i539a.relationship.spouse')}</option>
+                          <option value="child">{t('student_dashboard.cos.wizard.i539a.relationship.child')}</option>
+                          <option value="other">{t('student_dashboard.cos.wizard.i539a.relationship.other')}</option>
+                        </select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-new-dependent-dob">{t('student_dashboard.cos.wizard.i539a.birth_date')}</Label>
+                        <Input id="cos-new-dependent-dob" type="date" value={newDependentForm.date_of_birth} onChange={event => handleNewDependentChange('date_of_birth', event.target.value)} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-new-dependent-status">{t('student_dashboard.cos.wizard.i539.current_status')}</Label>
+                        <Input id="cos-new-dependent-status" value={newDependentForm.current_nonimmigrant_status} onChange={event => handleNewDependentChange('current_nonimmigrant_status', event.target.value)} placeholder="B-2" />
+                      </div>
+                    </div>
+                    {newDependentError && (
+                      <p className="mt-3 text-sm font-semibold text-red-600 dark:text-red-300">{newDependentError}</p>
+                    )}
+                    <Button type="button" onClick={handleCreateDependent} disabled={newDependentSaving || !newDependentForm.full_name.trim() || !newDependentForm.relationship} className="mt-4 bg-[#CE9F48] text-black hover:bg-[#b8892f] disabled:opacity-60">
+                      {newDependentSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                      <Save className="h-4 w-4" />
+                      {t('student_dashboard.cos.wizard.i539a.add_button')}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-widest text-[#9a6a16] dark:text-[#CE9F48]">
+                    {t('student_dashboard.cos.steps.uscis_letter')}
+                  </div>
+                  <h3 className="mt-2 text-lg font-black">
+                    {t('student_dashboard.cos.wizard.uscis_letter.title')}
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                    {t('student_dashboard.cos.wizard.uscis_letter.desc')}
+                  </p>
+                </div>
+                <div className="flex flex-col items-start gap-2 sm:items-end">
+                  <Badge className={uscisLetterComplete ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'}>
+                    {uscisLetterComplete
+                      ? t('student_dashboard.cos.completed')
+                      : t('student_dashboard.cos.active')}
+                  </Badge>
+                  <Badge className={cn(
+                    'w-fit border px-3 py-1 text-xs font-black',
+                    uscisLetterSaveState === 'error'
+                      ? 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300'
+                      : uscisLetterSaveState === 'saved'
+                        ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                        : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'
+                  )}>
+                    {uscisLetterSaveState === 'saving' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                    {uscisLetterAutosaveLabel}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+                {t('student_dashboard.cos.wizard.uscis_letter.notice')}
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-[#e3d5bd] bg-white p-4 dark:border-white/10 dark:bg-black/20">
+                    <h4 className="text-sm font-black">{t('student_dashboard.cos.wizard.uscis_letter.block1_title')}</h4>
+                    <div className="mt-3 grid gap-2 text-sm text-[#6f6251] dark:text-gray-400 sm:grid-cols-2">
+                      <InfoLine label={t('student_dashboard.cos.wizard.i539.email')} value={i539Form.email || getProfileValue(userProfile, 'email') || '—'} />
+                      <InfoLine label={t('student_dashboard.cos.wizard.i539.current_status')} value={i539Form.current_status || '—'} />
+                      <InfoLine label={t('student_dashboard.cos.wizard.i539.last_entry_date')} value={i539Form.last_entry_date || '—'} />
+                      <InfoLine label="I-20" value={i20Record ? `${i20Record.school_name} / ${i20Record.sevis_id}` : '—'} />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="cos-letter-request-reason">{t('student_dashboard.cos.wizard.uscis_letter.request_reason')}</Label>
+                      <Textarea
+                        id="cos-letter-request-reason"
+                        value={uscisLetterForm.request_reason}
+                        onChange={event => handleUscisLetterChange('request_reason', event.target.value)}
+                        rows={4}
+                        maxLength={1500}
+                      />
+                      <p className={cn('text-xs', uscisLetterForm.request_reason.trim().length >= 100 ? 'text-[#6f6251] dark:text-gray-400' : 'font-semibold text-amber-700 dark:text-amber-300')}>
+                        {t('student_dashboard.cos.wizard.uscis_letter.min_max', { count: uscisLetterForm.request_reason.trim().length })}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-academic">{t('student_dashboard.cos.wizard.uscis_letter.academic_background')}</Label>
+                        <Textarea id="cos-letter-academic" value={uscisLetterForm.academic_background} onChange={event => handleUscisLetterChange('academic_background', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-professional">{t('student_dashboard.cos.wizard.uscis_letter.professional_experience')}</Label>
+                        <Textarea id="cos-letter-professional" value={uscisLetterForm.professional_experience} onChange={event => handleUscisLetterChange('professional_experience', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-course-connection">{t('student_dashboard.cos.wizard.uscis_letter.course_connection')}</Label>
+                        <Textarea id="cos-letter-course-connection" value={uscisLetterForm.course_connection} onChange={event => handleUscisLetterChange('course_connection', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-us-activities">{t('student_dashboard.cos.wizard.uscis_letter.us_activities')}</Label>
+                        <Textarea id="cos-letter-us-activities" value={uscisLetterForm.us_activities} onChange={event => handleUscisLetterChange('us_activities', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-intent">{t('student_dashboard.cos.wizard.uscis_letter.intent_change_context')}</Label>
+                        <Textarea id="cos-letter-intent" value={uscisLetterForm.intent_change_context} onChange={event => handleUscisLetterChange('intent_change_context', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-course-reason">{t('student_dashboard.cos.wizard.uscis_letter.course_reason')}</Label>
+                        <Textarea id="cos-letter-course-reason" value={uscisLetterForm.course_reason} onChange={event => handleUscisLetterChange('course_reason', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-school-reason">{t('student_dashboard.cos.wizard.uscis_letter.school_reason')}</Label>
+                        <Textarea id="cos-letter-school-reason" value={uscisLetterForm.school_reason} onChange={event => handleUscisLetterChange('school_reason', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-career">{t('student_dashboard.cos.wizard.uscis_letter.career_benefit')}</Label>
+                        <Textarea id="cos-letter-career" value={uscisLetterForm.career_benefit} onChange={event => handleUscisLetterChange('career_benefit', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="cos-letter-financial">{t('student_dashboard.cos.wizard.uscis_letter.financial_support')}</Label>
+                      <Textarea id="cos-letter-financial" value={uscisLetterForm.financial_support} onChange={event => handleUscisLetterChange('financial_support', event.target.value)} rows={4} maxLength={1500} />
+                      <label className="flex gap-3 rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-3 text-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <input type="checkbox" className="mt-1 h-4 w-4 rounded border-[#CE9F48]" checked={uscisLetterForm.funds_acknowledged} onChange={event => handleUscisLetterChange('funds_acknowledged', event.target.checked)} />
+                        <span>{t('student_dashboard.cos.wizard.uscis_letter.funds_acknowledged')}</span>
+                      </label>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-home-ties">{t('student_dashboard.cos.wizard.uscis_letter.home_ties')}</Label>
+                        <Textarea id="cos-letter-home-ties" value={uscisLetterForm.home_ties} onChange={event => handleUscisLetterChange('home_ties', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-post-study">{t('student_dashboard.cos.wizard.uscis_letter.post_study_plans')}</Label>
+                        <Textarea id="cos-letter-post-study" value={uscisLetterForm.post_study_plans} onChange={event => handleUscisLetterChange('post_study_plans', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="cos-letter-knowledge">{t('student_dashboard.cos.wizard.uscis_letter.knowledge_application')}</Label>
+                        <Textarea id="cos-letter-knowledge" value={uscisLetterForm.knowledge_application} onChange={event => handleUscisLetterChange('knowledge_application', event.target.value)} rows={4} maxLength={1500} />
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-[#e3d5bd] bg-white p-4 dark:border-white/10 dark:bg-black/20">
+                      <h4 className="text-sm font-black">{t('student_dashboard.cos.wizard.uscis_letter.commitments_title')}</h4>
+                      <div className="mt-3 space-y-2">
+                        {COS_USCIS_LETTER_REQUIRED_CHECKBOXES.filter(field => field !== 'funds_acknowledged').map(field => (
+                          <label key={field} className="flex gap-3 text-sm">
+                            <input type="checkbox" className="mt-1 h-4 w-4 rounded border-[#CE9F48]" checked={uscisLetterForm[field] === true} onChange={event => handleUscisLetterChange(field, event.target.checked)} />
+                            <span>{t(`student_dashboard.cos.wizard.uscis_letter.${field}`)}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-[#CE9F48]/30 bg-[#CE9F48]/10 p-4">
+                    <div className="text-xs font-black uppercase tracking-widest text-[#9a6a16] dark:text-[#CE9F48]">
+                      {t('student_dashboard.cos.wizard.uscis_letter.progress_title')}
+                    </div>
+                    <div className="mt-2 text-2xl font-black">{uscisLetterTextProgress}/{COS_USCIS_LETTER_REQUIRED_TEXT_FIELDS.length}</div>
+                    <p className="mt-1 text-sm text-[#6f6251] dark:text-gray-400">
+                      {t('student_dashboard.cos.wizard.uscis_letter.progress_desc')}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-[#e3d5bd] bg-white p-4 dark:border-white/10 dark:bg-black/20">
+                    <h4 className="text-sm font-black">{t('student_dashboard.cos.wizard.uscis_letter.preview_title')}</h4>
+                    <div className="mt-3 max-h-[520px] space-y-3 overflow-auto rounded-md bg-[#fffaf0] p-3 text-xs leading-relaxed text-[#4b4032] dark:bg-white/[0.03] dark:text-gray-300">
+                      <p className="font-black">U.S. Citizenship and Immigration Services</p>
+                      <p>Re: Application for Change of Nonimmigrant Status - Form I-539</p>
+                      {COS_USCIS_LETTER_REQUIRED_TEXT_FIELDS.map(field => {
+                        const value = String(uscisLetterForm[field] ?? '').trim();
+                        if (!value) return null;
+                        return (
+                          <div key={field}>
+                            <p className="font-black">{t(`student_dashboard.cos.wizard.uscis_letter.${field}`)}</p>
+                            <p className="whitespace-pre-wrap">{value}</p>
+                          </div>
+                        );
+                      })}
+                      <p className="font-black">{t('student_dashboard.cos.wizard.uscis_letter.documents_included')}</p>
+                      <ul className="list-disc pl-4">
+                        {checklistItems.filter(item => item.status === 'uploaded' || item.status === 'approved').map(item => (
+                          <li key={item.id}>{item.label}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-widest text-[#9a6a16] dark:text-[#CE9F48]">
+                    {t('student_dashboard.cos.steps.checklist')}
+                  </div>
+                  <h3 className="mt-2 text-lg font-black">
+                    {t('student_dashboard.cos.wizard.checklist.title')}
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                    {t('student_dashboard.cos.wizard.checklist.desc')}
+                  </p>
+                </div>
+                <Badge className={checklistComplete ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'}>
+                  {checklistComplete
+                    ? t('student_dashboard.cos.completed')
+                    : t('student_dashboard.cos.active')}
+                </Badge>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+                {t('student_dashboard.cos.wizard.checklist.notice')}
+              </div>
+
+              {checklistError && (
+                <div className="mt-4 rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-sm font-semibold text-red-700 dark:text-red-300">
+                  {checklistError}
+                </div>
+              )}
+
+              <div className="mt-4 grid gap-3">
+                {checklistLoading ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-[#e3d5bd] bg-white p-4 text-sm text-[#6f6251] dark:border-white/10 dark:bg-black/20 dark:text-gray-300">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t('student_dashboard.cos.wizard.checklist.loading')}
+                  </div>
+                ) : checklistItems.length > 0 ? (
+                  checklistItems.map(item => {
+                    const isUploading = checklistUploadingKey === item.item_key;
+                    const isDone = item.status === 'approved' || item.status === 'not_applicable';
+                    return (
+                      <div key={item.id} className="rounded-lg border border-[#e3d5bd] bg-white p-4 text-sm dark:border-white/10 dark:bg-black/20">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-black">{item.label}</span>
+                              {item.required && (
+                                <Badge className="border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]">
+                                  {t('student_dashboard.cos.wizard.checklist.required')}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#6f6251] dark:text-gray-400">
+                              <span>{t(`student_dashboard.cos.wizard.checklist.category.${item.category}`)}</span>
+                              {item.file_name && <span>• {item.file_name}</span>}
+                              {item.rejection_reason && <span className="font-semibold text-red-600 dark:text-red-300">• {item.rejection_reason}</span>}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge className={cn(
+                              isDone
+                                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                : item.status === 'rejected'
+                                  ? 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300'
+                                  : 'border-[#e3d5bd] bg-white text-[#8a7b66] dark:border-white/10 dark:bg-white/5 dark:text-gray-400'
+                            )}>
+                              {t(`student_dashboard.cos.wizard.checklist.status.${item.status}`)}
+                            </Badge>
+                            <label className={cn(
+                              'inline-flex h-9 cursor-pointer items-center gap-2 rounded-md bg-[#CE9F48] px-3 text-xs font-black text-black transition-colors hover:bg-[#b8892f]',
+                              isUploading && 'pointer-events-none opacity-70'
+                            )}>
+                              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                              {isUploading
+                                ? t('student_dashboard.cos.wizard.checklist.uploading')
+                                : t('student_dashboard.cos.wizard.checklist.upload_button')}
+                              <input
+                                type="file"
+                                accept="application/pdf,image/jpeg,image/png"
+                                className="hidden"
+                                disabled={isUploading}
+                                onChange={event => {
+                                  const file = event.target.files?.[0];
+                                  event.target.value = '';
+                                  if (file) void handleChecklistUpload(item, file);
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="rounded-lg border border-dashed border-[#CE9F48]/30 bg-white p-4 text-sm text-[#6f6251] dark:bg-black/20 dark:text-gray-300">
+                    {t('student_dashboard.cos.wizard.checklist.empty')}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-widest text-[#9a6a16] dark:text-[#CE9F48]">
+                    {t('student_dashboard.cos.steps.submission_method')}
+                  </div>
+                  <h3 className="mt-2 text-lg font-black">
+                    {t('student_dashboard.cos.wizard.submission_method.title')}
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                    {t('student_dashboard.cos.wizard.submission_method.desc')}
+                  </p>
+                </div>
+                <Badge className={submissionMethodComplete ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'}>
+                  {submissionMethodComplete
+                    ? t('student_dashboard.cos.completed')
+                    : t('student_dashboard.cos.active')}
+                </Badge>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+                {t('student_dashboard.cos.wizard.submission_method.disclaimer')}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-black text-[#6f6251] dark:text-gray-300">
+                  {t('student_dashboard.cos.wizard.submission_method.current')}
+                </span>
+                <Badge className="border-[#e3d5bd] bg-white text-[#8a7b66] dark:border-white/10 dark:bg-white/5 dark:text-gray-300">
+                  {submissionMethod === 'online'
+                    ? t('student_dashboard.cos.wizard.submission_method.current_online')
+                    : submissionMethod === 'mail'
+                      ? t('student_dashboard.cos.wizard.submission_method.current_mail')
+                      : t('student_dashboard.cos.wizard.submission_method.current_undecided')}
+                </Badge>
+              </div>
+
+              {submissionMessage && (
+                <div className={cn(
+                  'mt-4 rounded-lg border p-3 text-sm font-semibold',
+                  submissionMessage === t('student_dashboard.cos.wizard.submission_method.save_error')
+                    ? 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300'
+                    : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                )}>
+                  {submissionMessage}
+                </div>
+              )}
+
+              {mailRequired ? (
+                <div className="mt-4 rounded-lg border border-[#e3d5bd] bg-white p-4 dark:border-white/10 dark:bg-black/20">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
+                        <Mail className="h-4 w-4" />
+                        {t('student_dashboard.cos.wizard.submission_method.mail_required_title')}
+                      </div>
+                      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                        {t('student_dashboard.cos.wizard.submission_method.mail_required_desc')}
+                      </p>
+                    </div>
+                    {submissionMethod === 'mail' && (
+                      <Badge className="border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                        {t('student_dashboard.cos.completed')}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-4 flex items-start gap-2">
+                    <Checkbox
+                      id="cos-mail-required-ack"
+                      checked={submissionAck.mail}
+                      onCheckedChange={checked => setSubmissionAck(prev => ({ ...prev, mail: checked === true }))}
+                    />
+                    <Label htmlFor="cos-mail-required-ack" className="cursor-pointer text-sm leading-relaxed text-[#6f6251] dark:text-gray-300">
+                      {t('student_dashboard.cos.wizard.submission_method.mail_required_ack')}
+                    </Label>
+                  </div>
+                  <Button
+                    type="button"
+                    className="mt-4 bg-[#CE9F48] text-black hover:bg-[#b8892f]"
+                    disabled={!submissionAck.mail || submissionSaving}
+                    onClick={() => void handleSelectSubmissionMethod('mail')}
+                  >
+                    {submissionSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                    {submissionSaving
+                      ? t('student_dashboard.cos.wizard.submission_method.saving')
+                      : t('student_dashboard.cos.wizard.submission_method.confirm_mail')}
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  {(['online', 'mail'] as const).map(method => {
+                    const isOnline = method === 'online';
+                    const selected = submissionMethod === method;
+                    return (
+                      <div
+                        key={method}
+                        className={cn(
+                          'rounded-lg border bg-white p-4 dark:bg-black/20',
+                          selected
+                            ? 'border-emerald-500/40'
+                            : 'border-[#e3d5bd] dark:border-white/10'
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
+                              {isOnline ? <Globe className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                              {t(`student_dashboard.cos.wizard.submission_method.${method}_title`)}
+                            </div>
+                            <p className="mt-2 text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                              {t(`student_dashboard.cos.wizard.submission_method.${method}_desc`)}
+                            </p>
+                          </div>
+                          {selected && (
+                            <Badge className="border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                              {t('student_dashboard.cos.completed')}
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="mt-4 space-y-2 text-sm text-[#6f6251] dark:text-gray-300">
+                          <div className="flex gap-2">
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                            <span>{t(`student_dashboard.cos.wizard.submission_method.${method}_point_1`)}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                            <span>{t(`student_dashboard.cos.wizard.submission_method.${method}_point_2`)}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+                            <span>{t(`student_dashboard.cos.wizard.submission_method.${method}_fee_notice`)}</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-start gap-2">
+                          <Checkbox
+                            id={`cos-${method}-ack`}
+                            checked={submissionAck[method]}
+                            onCheckedChange={checked => setSubmissionAck(prev => ({ ...prev, [method]: checked === true }))}
+                          />
+                          <Label htmlFor={`cos-${method}-ack`} className="cursor-pointer text-sm leading-relaxed text-[#6f6251] dark:text-gray-300">
+                            {t('student_dashboard.cos.wizard.submission_method.ack')}
+                          </Label>
+                        </div>
+
+                        <Button
+                          type="button"
+                          className="mt-4 w-full bg-[#CE9F48] text-black hover:bg-[#b8892f]"
+                          disabled={!submissionAck[method] || submissionSaving}
+                          onClick={() => void handleSelectSubmissionMethod(method)}
+                        >
+                          {submissionSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isOnline ? <Globe className="mr-2 h-4 w-4" /> : <Mail className="mr-2 h-4 w-4" />}
+                          {submissionSaving
+                            ? t('student_dashboard.cos.wizard.submission_method.saving')
+                            : t(`student_dashboard.cos.wizard.submission_method.choose_${method}`)}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function ApplicationsTab({
   applications,
   documents,
@@ -1034,7 +3311,7 @@ function ProfileTab({
   const academicRows = [
     { icon: BookOpen, label: t('student_dashboard.profile.row_interest'), value: formatArrayOrText(surveyResponse?.interest_areas) },
     { icon: GraduationCap, label: t('student_dashboard.profile.row_formation'), value: surveyResponse?.academic_formation },
-    { icon: Target, label: t('student_dashboard.profile.row_process_type'), value: userProfile?.service_type || userProfile?.student_process_type },
+    { icon: Target, label: t('student_dashboard.profile.row_process_type'), value: getStudentProcessDisplayName(userProfile) },
     { icon: MessageCircle, label: t('student_dashboard.profile.row_english'), value: surveyResponse?.english_level },
   ];
 
@@ -3156,7 +5433,12 @@ const StudentDashboard = () => {
     document.documentElement.classList.contains('dark')
   );
 
-  const activeTab = isDashboardTab(tab) ? tab : 'overview';
+  const isCosStudent = isCosStudentProfile(userProfile);
+  const availableTabs = useMemo(
+    () => TABS_CONFIG.filter(item => item.id !== 'change-of-status' || isCosStudent),
+    [isCosStudent],
+  );
+  const activeTab = isDashboardTab(tab) && availableTabs.some(item => item.id === tab) ? tab : 'overview';
 
   const {
     data,
@@ -3205,6 +5487,12 @@ const StudentDashboard = () => {
       navigate('/student/login', { replace: true });
     }
   }, [authLoading, navigate, user]);
+
+  useEffect(() => {
+    if (!authLoading && user && tab && tab !== activeTab) {
+      navigate('/student/dashboard/overview', { replace: true });
+    }
+  }, [activeTab, authLoading, navigate, tab, user]);
 
   useEffect(() => {
     const profileId = userProfile?.id;
@@ -3381,6 +5669,15 @@ const StudentDashboard = () => {
             openViewer={openViewer}
           />
         );
+      case 'change-of-status':
+        return (
+          <ChangeOfStatusTab
+            application={activeApplication}
+            cosCase={data.cosCase}
+            i20Record={data.cosI20Record}
+            dependents={data.cosDependents}
+          />
+        );
       case 'rewards':
         return <StudentRewardsPanel />;
       case 'support':
@@ -3448,7 +5745,7 @@ const StudentDashboard = () => {
           </div>
 
           <nav className="mt-10 flex-1 space-y-1">
-            {TABS_CONFIG.map(item => {
+            {availableTabs.map(item => {
               const showSupportUnreadIndicator = item.id === 'support' && hasUnreadSupportMessage && activeTab !== 'support';
 
               return (
@@ -3542,7 +5839,7 @@ const StudentDashboard = () => {
              <div className="hidden items-center gap-3 sm:flex">
                <div className="text-right hidden sm:block">
                  <p className="text-xs font-black">{userProfile?.full_name}</p>
-                 <p className="text-[10px] text-[#8a7b66] dark:text-gray-500 capitalize">{userProfile?.student_process_type || 'Estudante'}</p>
+                 <p className="text-[10px] text-[#8a7b66] dark:text-gray-500">{getStudentProcessDisplayName(userProfile)}</p>
                </div>
                <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#b8892f] dark:border-[#CE9F48] bg-[#f3ead9] dark:bg-white/5">
                  <User className="h-5 w-5 text-[#9a6a16] dark:text-[#CE9F48]" />

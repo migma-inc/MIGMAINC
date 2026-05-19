@@ -360,6 +360,28 @@ export function persistFilters(filters: OnboardingCrmFilters): void {
  */
 export type CrmProductLine = 'cos' | 'transfer' | 'initial';
 
+function normalizeProductToken(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase().replace(/_/g, '-');
+}
+
+function matchesProductLine(
+  productLine: CrmProductLine,
+  ...values: Array<string | null | undefined>
+): boolean {
+  const aliases: Record<CrmProductLine, string[]> = {
+    cos: ['cos', 'change-of-status'],
+    transfer: ['transfer'],
+    initial: ['initial'],
+  };
+
+  return values.some((value) => {
+    const normalized = normalizeProductToken(value);
+    return aliases[productLine].some(
+      (alias) => normalized === alias || normalized.startsWith(`${alias}-`),
+    );
+  });
+}
+
 const PROFILE_SELECT_LEGACY = `
   id, user_id, email, full_name, phone, country, field_of_interest, academic_level,
   status, source, service_type,
@@ -648,15 +670,11 @@ export async function loadOnboardingBoard(
     //    creates the visa_order but doesn't yet write back to user_profiles.service_type)
     .filter((c) => {
       if (!productLine) return true;
-      const st = c.profile.service_type ?? '';
-      const pt = c.profile.student_process_type ?? '';
-      const slug = c.visaOrder?.product_slug ?? '';
-      return (
-        st === productLine ||
-        st.startsWith(productLine + '-') ||
-        pt === productLine ||
-        slug === productLine ||
-        slug.startsWith(productLine + '-')
+      return matchesProductLine(
+        productLine,
+        c.profile.service_type,
+        c.profile.student_process_type,
+        c.visaOrder?.product_slug,
       );
     });
 
@@ -1079,6 +1097,43 @@ export interface CrmRecurringCharge {
   created_at: string;
 }
 
+export interface CrmCosCase {
+  id: string;
+  profile_id: string;
+  service_request_id: string | null;
+  institution_application_id: string | null;
+  status: 'blocked' | 'in_progress' | 'documents_generated' | 'submitted_to_uscis' | 'completed' | 'cancelled';
+  submission_method: 'undecided' | 'online' | 'mail';
+  current_step: 'i539' | 'i539a' | 'uscis_letter' | 'checklist' | 'submission_method' | 'generation_submission';
+  has_dependents: boolean;
+  i94_expiry_date: string | null;
+  unlocked_at: string | null;
+  documents_generated_at: string | null;
+  submitted_to_uscis_at: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CrmCosI20Record {
+  id: string;
+  cos_case_id: string;
+  profile_id: string;
+  institution_application_id: string | null;
+  school_name: string;
+  sevis_id: string;
+  issued_at: string;
+  program_start_date: string;
+  total_cost_usd: number | string;
+  file_path: string | null;
+  file_url: string | null;
+  recorded_by: string | null;
+  recorded_at: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CaseDetailPage {
   profile: CrmProfile;
   serviceRequests: CrmServiceRequest[];
@@ -1114,6 +1169,10 @@ export interface CaseDetailPage {
   supportHandoffs: CrmSupportHandoff[];
   /** Histórico de chat de suporte */
   supportChatMessages: CrmSupportChatMessage[];
+  /** COS v14 case state, if already created */
+  cosCase: CrmCosCase | null;
+  /** Admin-registered I-20 that unlocks the student COS module */
+  cosI20Record: CrmCosI20Record | null;
 }
 
 export interface CrmSupportHandoff {
@@ -1236,7 +1295,7 @@ export async function loadDetailPage(
   const srId = primaryRequest?.id ?? null;
   const srIds = serviceRequests.map((sr) => sr.id);
 
-  const [historyResult, eventsResult, followupsResult, onboardingStepFollowups, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult, institutionAppResult, institutionFormsResult, recurringChargeResult, supportHandoffsResult, supportChatResult] = await Promise.all([
+  const [historyResult, eventsResult, followupsResult, onboardingStepFollowups, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult, institutionAppResult, institutionFormsResult, recurringChargeResult, supportHandoffsResult, supportChatResult, cosCaseResult, cosI20Result] = await Promise.all([
     srId
       ? supabase
           .from('service_request_stage_history')
@@ -1376,6 +1435,30 @@ export async function loadDetailPage(
       .eq('profile_id', profileId)
       .order('created_at', { ascending: true })
       .limit(300),
+
+    // COS v14 case state
+    supabase
+      .from('cos_cases')
+      .select(`
+        id, profile_id, service_request_id, institution_application_id,
+        status, submission_method, current_step, has_dependents,
+        i94_expiry_date, unlocked_at, documents_generated_at,
+        submitted_to_uscis_at, metadata, created_at, updated_at
+      `)
+      .eq('profile_id', profileId)
+      .maybeSingle(),
+
+    // I-20 record registered by admin for COS unlock
+    supabase
+      .from('cos_i20_records')
+      .select(`
+        id, cos_case_id, profile_id, institution_application_id,
+        school_name, sevis_id, issued_at, program_start_date,
+        total_cost_usd, file_path, file_url, recorded_by, recorded_at,
+        metadata, created_at, updated_at
+      `)
+      .eq('profile_id', profileId)
+      .maybeSingle(),
   ]);
 
   return {
@@ -1402,6 +1485,8 @@ export async function loadDetailPage(
       recurringCharge: (recurringChargeResult.data ?? null) as CrmRecurringCharge | null,
       supportHandoffs: (supportHandoffsResult.data ?? []) as CrmSupportHandoff[],
       supportChatMessages: (supportChatResult.data ?? []) as CrmSupportChatMessage[],
+      cosCase: (cosCaseResult.data ?? null) as CrmCosCase | null,
+      cosI20Record: (cosI20Result.data ?? null) as CrmCosI20Record | null,
     },
     error: null,
   };

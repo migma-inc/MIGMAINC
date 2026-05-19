@@ -129,6 +129,43 @@ export interface DashboardComplementaryData {
   recommender2_contact: string | null;
 }
 
+export interface DashboardCosCase {
+  id: string;
+  status: 'blocked' | 'in_progress' | 'documents_generated' | 'submitted_to_uscis' | 'completed' | 'cancelled';
+  submission_method: 'undecided' | 'online' | 'mail';
+  current_step: string;
+  has_dependents: boolean;
+  i94_expiry_date: string | null;
+  unlocked_at: string | null;
+  documents_generated_at: string | null;
+  submitted_to_uscis_at: string | null;
+}
+
+export interface DashboardCosI20Record {
+  id: string;
+  cos_case_id: string;
+  school_name: string;
+  sevis_id: string;
+  issued_at: string;
+  program_start_date: string;
+  total_cost_usd: number | string;
+  file_path: string | null;
+  recorded_at: string;
+}
+
+export interface DashboardCosDependent {
+  id: string;
+  full_name: string;
+  relationship: 'spouse' | 'child' | 'other';
+  date_of_birth: string | null;
+  country_of_birth: string | null;
+  country_of_citizenship: string | null;
+  current_nonimmigrant_status: string | null;
+  sevis_id: string | null;
+  i539a_required: boolean;
+  sort_order: number;
+}
+
 export interface DashboardData {
   applications: DashboardApplication[];
   documents: DashboardDocument[];
@@ -137,6 +174,9 @@ export interface DashboardData {
   studentDocuments: DashboardStudentDocument[];
   surveyResponse: DashboardSurveyResponse | null;
   complementaryData: DashboardComplementaryData | null;
+  cosCase: DashboardCosCase | null;
+  cosI20Record: DashboardCosI20Record | null;
+  cosDependents: DashboardCosDependent[];
 }
 
 export function useStudentDashboard() {
@@ -151,6 +191,9 @@ export function useStudentDashboard() {
     studentDocuments: [],
     surveyResponse: null,
     complementaryData: null,
+    cosCase: null,
+    cosI20Record: null,
+    cosDependents: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -165,6 +208,9 @@ export function useStudentDashboard() {
         studentDocuments: [],
         surveyResponse: null,
         complementaryData: null,
+        cosCase: null,
+        cosI20Record: null,
+        cosDependents: [],
       });
       setLoading(false);
       return;
@@ -172,7 +218,7 @@ export function useStudentDashboard() {
     setLoading(true);
     setError(null);
 
-    const [applicationsRes, documentsRes, formsRes, identityRes, studentDocumentsRes, surveyRes, complementaryRes] = await Promise.all([
+    const [applicationsRes, documentsRes, formsRes, identityRes, studentDocumentsRes, surveyRes, complementaryRes, cosCaseRes, cosI20Res, cosDependentsRes] = await Promise.all([
       supabase
         .from('institution_applications')
         .select(`
@@ -224,9 +270,25 @@ export function useStudentDashboard() {
         .select('*')
         .eq('profile_id', profileId)
         .maybeSingle(),
+      supabase
+        .from('cos_cases')
+        .select('id, status, submission_method, current_step, has_dependents, i94_expiry_date, unlocked_at, documents_generated_at, submitted_to_uscis_at')
+        .eq('profile_id', profileId)
+        .maybeSingle(),
+      supabase
+        .from('cos_i20_records')
+        .select('id, cos_case_id, school_name, sevis_id, issued_at, program_start_date, total_cost_usd, file_path, recorded_at')
+        .eq('profile_id', profileId)
+        .maybeSingle(),
+      supabase
+        .from('cos_dependents')
+        .select('id, full_name, relationship, date_of_birth, country_of_birth, country_of_citizenship, current_nonimmigrant_status, sevis_id, i539a_required, sort_order')
+        .eq('profile_id', profileId)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true }),
     ]);
 
-    if (applicationsRes.error || documentsRes.error || formsRes.error || identityRes.error || studentDocumentsRes.error || surveyRes.error || complementaryRes.error) {
+    if (applicationsRes.error || documentsRes.error || formsRes.error || identityRes.error || studentDocumentsRes.error || surveyRes.error || complementaryRes.error || cosCaseRes.error || cosI20Res.error || cosDependentsRes.error) {
       setError(
         applicationsRes.error?.message ||
         documentsRes.error?.message ||
@@ -235,6 +297,9 @@ export function useStudentDashboard() {
         studentDocumentsRes.error?.message ||
         surveyRes.error?.message ||
         complementaryRes.error?.message ||
+        cosCaseRes.error?.message ||
+        cosI20Res.error?.message ||
+        cosDependentsRes.error?.message ||
         'Erro ao carregar dashboard',
       );
     }
@@ -247,6 +312,9 @@ export function useStudentDashboard() {
       studentDocuments: (studentDocumentsRes.data ?? []) as DashboardStudentDocument[],
       surveyResponse: (surveyRes.data ?? null) as DashboardSurveyResponse | null,
       complementaryData: (complementaryRes.data ?? null) as DashboardComplementaryData | null,
+      cosCase: (cosCaseRes.data ?? null) as DashboardCosCase | null,
+      cosI20Record: (cosI20Res.data ?? null) as DashboardCosI20Record | null,
+      cosDependents: (cosDependentsRes.data ?? []) as DashboardCosDependent[],
     });
     setLoading(false);
   }, [profileId, userId]);

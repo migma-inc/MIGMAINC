@@ -1640,6 +1640,7 @@
       "applications": "Mis Candidaturas",
       "documents": "Documentos Pendientes",
       "supplemental_data": "Datos Complementarios",
+      "change_of_status": "Change of Status",
       "forms": "Formularios para Firmar",
       "rewards": "Programa de Referidos",
       "support": "Soporte",
@@ -1647,6 +1648,218 @@
     },
     "nav": {
       "unread_support": "Nuevo mensaje de soporte"
+    },
+    "cos": {
+      "badge": "Change of Status",
+      "title": "Change of Status",
+      "subtitle": "Tu módulo COS se liberará después de que el equipo MIGMA registre tu I-20.",
+      "status_blocked": "Bloqueado",
+      "status_unlocked": "Liberado",
+      "locked_title": "Esperando el registro del I-20",
+      "locked_desc": "Cuando se registre el I-20, esta área abrirá el flujo guiado del I-539, I-539A, carta, checklist y generación de PDFs.",
+      "unlocked_title": "Asistente COS liberado",
+      "unlocked_desc": "Continúa completando las secciones COS y genera tus documentos cuando toda la información esté revisada.",
+      "start_button": "Iniciar COS",
+      "progress_title": "Etapas del módulo COS",
+      "pending": "Pendiente",
+      "readiness_title": "Prerrequisitos",
+      "i20_registered": "I-20 registrado",
+      "waiting": "Esperando",
+      "acceptance_letter": "Carta de aceptación",
+      "available": "Disponible",
+      "i94_expiry": "Vencimiento del I-94",
+      "program_start_date": "Inicio del programa",
+      "active": "Activa",
+      "attention": "Requiere atención",
+      "completed": "Completada",
+      "not_required": "No obligatorio",
+      "upl_title": "Aviso importante",
+      "upl_desc": "MIGMA no presta asesoría legal. La información en esta área es educativa y el contenido narrativo siempre será escrito y confirmado por el estudiante.",
+      "steps": {
+        "i539": "I-539",
+        "i539a": "I-539A",
+        "uscis_letter": "Carta USCIS",
+        "checklist": "Checklist",
+        "submission_method": "En línea o por correo",
+        "submission": "Generación y envío"
+      },
+      "wizard": {
+        "title": "Asistente COS",
+        "subtitle": "Comienza con información neutral del I-539. Tus respuestas se guardan automáticamente y siguen editables.",
+        "current_section": "Sección actual",
+        "loading": "Cargando",
+        "autosave_idle": "Guardado automático listo",
+        "autosave_pending": "Guardado automático pendiente",
+        "autosave_saving": "Guardando",
+        "autosave_saved_at": "Guardado a las {{time}}",
+        "autosave_error": "No se pudo guardar automáticamente",
+        "autosave_load_error": "No se pudieron cargar las respuestas COS guardadas.",
+        "upl_full": "MIGMA INC. no es un despacho de abogados y no ofrece asesoría legal ni servicios legales de inmigración. Este material se proporciona únicamente con fines educativos y no constituye asesoría legal, representación ni consultoría jurídica. MIGMA INC. no está acreditada para representar a personas ante USCIS ni ante ninguna autoridad gubernamental. Para recibir asesoría legal sobre tu situación específica, consulta a un abogado de inmigración licenciado. ¿Preguntas? Contáctanos en adm@migmainc.com.",
+        "part4_title": "Protección de Part 4",
+        "part4_desc": "Para preguntas de historial personal, la plataforma solo muestra temas neutrales y la referencia oficial de USCIS. No sugiere qué responder.",
+        "part4_ack": "Entiendo que las respuestas de historial personal deben basarse solo en mis hechos reales y en las instrucciones oficiales de USCIS.",
+        "uscis_link": "Página oficial de USCIS para el I-539",
+        "i539": {
+          "title": "Sección 1 - Información del solicitante I-539",
+          "desc": "Ingresa datos objetivos de tus documentos. Estos campos preparan la estructura de datos para el flujo oficial del I-539.",
+          "current_status": "Estado migratorio actual",
+          "requested_status": "Estado solicitado",
+          "last_entry_date": "Fecha de última entrada a EE. UU.",
+          "i94_number": "Número I-94",
+          "i94_hint": "Usa exactamente 11 dígitos numéricos de tu I-94 más reciente.",
+          "passport_number": "Número de pasaporte",
+          "passport_country": "País emisor del pasaporte",
+          "passport_expiration": "Fecha de vencimiento del pasaporte",
+          "phone": "Teléfono diurno",
+          "email": "Correo electrónico",
+          "us_address": "Dirección postal en EE. UU.",
+          "part4_topics": {
+            "asylum": "Historial de asilo o withholding of removal",
+            "removal": "Procesos de remoción, deportación o exclusión",
+            "criminal": "Historial criminal",
+            "public_assistance": "Temas de asistencia pública",
+            "security": "Temas de seguridad, terrorismo, organización armada, genocidio o tráfico",
+            "unauthorized_work": "Trabajo no autorizado en Estados Unidos",
+            "status_violation": "Falta de mantenimiento de estatus u otras violaciones migratorias"
+          }
+        },
+        "validation": {
+          "title": "Verificaciones de consistencia",
+          "i94_format": "El número I-94 debe tener exactamente 11 dígitos numéricos.",
+          "i20_before_entry": "Atención: la fecha de emisión del I-20 es anterior a la fecha de última entrada a EE. UU. Revisa tus fechas para mantener consistencia.",
+          "i20_close_to_entry": "Atención: la fecha de emisión del I-20 está a menos de 30 días de la última entrada a EE. UU. Revisa tu línea de tiempo para mantener consistencia.",
+          "program_before_issue": "La fecha de inicio del programa no puede ser anterior a la emisión del I-20.",
+          "program_before_entry": "La fecha de inicio del programa no puede ser anterior a la última entrada a EE. UU."
+        },
+        "i539a": {
+          "title_required": "I-539A obligatorio para dependientes",
+          "title_not_required": "I-539A no obligatorio",
+          "desc_required": "Tu perfil indica dependientes. Cada dependiente incluido en el paquete COS necesita un I-539A, y el envío por correo es obligatorio.",
+          "desc_not_required": "No hay dependientes vinculados a este caso COS por ahora, por lo que la sección I-539A no es obligatoria.",
+          "mail_required": "Correo obligatorio",
+          "mail_notice": "Con dependientes, el envío en línea no está disponible en este flujo. El paquete debe seguir el camino por correo.",
+          "no_dependents_registered": "Tu checkout/perfil indica {{count}} dependiente(s), pero todavía no hay registros de dependientes COS registrados.",
+          "dependents_title": "Dependientes COS",
+          "dependent_label": "Dependiente {{number}}",
+          "unnamed_dependent": "Dependiente sin nombre",
+          "full_name": "Nombre completo",
+          "relationship_label": "Relación",
+          "select_relationship": "Selecciona la relación",
+          "country_of_birth": "País de nacimiento",
+          "country_of_citizenship": "País de ciudadanía",
+          "sevis_id": "SEVIS ID",
+          "add_title": "Agregar dependiente",
+          "add_button": "Guardar dependiente",
+          "create_error": "No se pudo guardar el dependiente.",
+          "birth_date": "Fecha de nacimiento",
+          "relationship": {
+            "spouse": "Cónyuge",
+            "child": "Hijo(a)",
+            "other": "Otro"
+          }
+        },
+        "uscis_letter": {
+          "title": "Carta personal al USCIS",
+          "desc": "Organiza tu carta en bloques. Todo texto narrativo debe ser escrito por ti, en primera persona, con base en tus hechos reales y documentos.",
+          "notice": "La plataforma no genera ni sugiere narrativa. Usa esta área solo para organizar tu propio borrador educativo.",
+          "block1_title": "Bloque 1 - Identificación automática",
+          "request_reason": "Por qué solicitas el cambio de estatus ahora",
+          "min_max": "{{count}}/1500 caracteres. Mínimo recomendado para este bloque: 100 caracteres.",
+          "academic_background": "Formación académica",
+          "professional_experience": "Experiencia profesional",
+          "course_connection": "Conexión con el programa elegido",
+          "us_activities": "Qué hiciste en EE. UU. hasta ahora",
+          "intent_change_context": "Cómo eso influyó en tu decisión de cambiar estatus",
+          "course_reason": "Por qué este programa",
+          "school_reason": "Por qué esta escuela",
+          "career_benefit": "Cómo ayudará a tu carrera",
+          "financial_support": "Capacidad financiera y documentos financieros",
+          "funds_acknowledged": "Confirmo que la explicación financiera se basa en mis recursos/documentos reales.",
+          "home_ties": "Vínculos con el país de origen",
+          "post_study_plans": "Planes después de los estudios",
+          "knowledge_application": "Cómo aplicarás el conocimiento adquirido",
+          "commitments_title": "Compromisos finales",
+          "f1_rules_ack": "Entiendo que debo cumplir las reglas del estatus F-1.",
+          "no_unauthorized_work_ack": "Entiendo que no debo trabajar sin autorización en EE. UU.",
+          "true_information_ack": "Confirmo que la información es verdadera y se basa en mis hechos reales.",
+          "personal_responsibility_ack": "Entiendo que redactar, revisar, firmar y usar la carta son mi responsabilidad personal.",
+          "uscis_official_ack": "Entiendo que debo consultar las instrucciones oficiales del USCIS en uscis.gov/i-539.",
+          "progress_title": "Progreso de la carta",
+          "progress_desc": "Campos narrativos completados por el alumno.",
+          "preview_title": "Vista previa organizada",
+          "documents_included": "Documents Included"
+        },
+        "checklist": {
+          "title": "Checklist documental COS",
+          "desc": "Sube los documentos de apoyo del paquete COS. El equipo MIGMA revisa los archivos antes de generar los documentos finales.",
+          "notice": "Usa solo PDF, JPG o PNG. Los archivos quedan en el bucket privado de COS.",
+          "loading": "Cargando checklist",
+          "empty": "Todavía no se creó ningún ítem de checklist.",
+          "required": "Obligatorio",
+          "upload_button": "Subir archivo",
+          "uploading": "Subiendo",
+          "load_error": "No se pudo cargar el checklist COS.",
+          "upload_error": "No se pudo subir el archivo del checklist.",
+          "file_type_error": "Usa solo archivos PDF, JPG o PNG.",
+          "file_size_error": "El archivo debe tener máximo 20 MB.",
+          "category": {
+            "applicant": "Solicitante principal",
+            "dependent": "Dependiente",
+            "evidence": "Evidencia",
+            "uscis": "USCIS",
+            "internal": "Interno"
+          },
+          "status": {
+            "pending": "Pendiente",
+            "uploaded": "Subido",
+            "approved": "Aprobado",
+            "rejected": "Rechazado",
+            "not_applicable": "No aplicable"
+          },
+          "items": {
+            "applicant_passport_bio": "Pasaporte - página biográfica del solicitante principal",
+            "applicant_i94": "I-94 más reciente del solicitante principal",
+            "applicant_status_evidence": "Evidencia de estatus actual del solicitante principal",
+            "applicant_signed_i20": "I-20 firmado del solicitante principal",
+            "applicant_financial_evidence": "Evidencia financiera",
+            "applicant_acceptance_letter": "Carta de aceptación de la escuela",
+            "dependent_passport_bio": "Pasaporte - página biográfica de {{name}}",
+            "dependent_i94": "I-94 más reciente de {{name}}",
+            "dependent_status_evidence": "Evidencia de estatus actual de {{name}}",
+            "dependent_relationship_evidence": "Evidencia de relación familiar de {{name}}"
+          }
+        },
+        "submission_method": {
+          "title": "Selección de vía",
+          "desc": "Elige cómo piensas enviar el paquete COS. Esta pantalla presenta información educativa y no recomienda una vía.",
+          "disclaimer": "MIGMA no presta asesoría legal, no recomienda envío en línea o por correo y no decide la estrategia del estudiante. La elección debe hacerla el estudiante según su propia situación y las instrucciones oficiales de USCIS.",
+          "current": "Vía guardada:",
+          "current_online": "En línea",
+          "current_mail": "Correo",
+          "current_undecided": "Aún no elegida",
+          "online_title": "Vía en línea",
+          "online_desc": "Flujo educativo para estudiante sin dependientes que pretende enviar por myUSCIS.",
+          "online_point_1": "Crear o acceder a la cuenta myUSCIS y completar el I-539 en el portal oficial.",
+          "online_point_2": "Subir documentos digitales, firmar electrónicamente y seguir el recibo en línea.",
+          "online_fee_notice": "Las tarifas son oficiales de USCIS, pueden cambiar y deben revisarse en el sitio oficial antes del envío.",
+          "mail_title": "Vía por correo",
+          "mail_desc": "Flujo educativo para preparar un paquete físico con formularios, documentos y comprobantes.",
+          "mail_point_1": "Usar PDFs, imprimir cuando sea necesario, firmar físicamente y organizar el paquete documental.",
+          "mail_point_2": "Enviar a la dirección/lockbox indicada por USCIS y conservar comprobante de rastreo.",
+          "mail_fee_notice": "Las tarifas y direcciones de envío son información oficial de USCIS, pueden cambiar y deben revisarse antes del envío.",
+          "ack": "Declaro que entiendo que MIGMA no está recomendando esta vía y que el envío es mi responsabilidad.",
+          "choose_online": "Seguir en línea",
+          "choose_mail": "Seguir por correo",
+          "saving": "Guardando elección",
+          "saved_online": "Vía en línea guardada para este caso COS.",
+          "saved_mail": "Vía por correo guardada para este caso COS.",
+          "save_error": "No fue posible guardar la elección de envío.",
+          "mail_required_title": "Correo obligatorio por dependientes",
+          "mail_required_desc": "Como este caso COS tiene dependientes, el flujo exige paquete por correo para incluir el I-539A de cada dependiente.",
+          "mail_required_ack": "Entiendo que, con dependientes en este caso, la vía por correo es obligatoria en este flujo y el envío sigue siendo mi responsabilidad.",
+          "confirm_mail": "Confirmar correo"
+        }
+      }
     },
     "tour": {
       "prompt_title": "¿Quieres hacer un tour rápido por tu panel?",
@@ -1690,6 +1903,10 @@
         "supplemental_data": {
           "title": "Datos complementarios",
           "description": "Completa información usada en los formularios universitarios y en tu paquete de candidatura."
+        },
+        "change_of_status": {
+          "title": "Change of Status",
+          "description": "Sigue el módulo COS, el bloqueo por I-20 y las próximas etapas del I-539."
         },
         "forms": {
           "title": "Formularios para firmar",
@@ -1797,6 +2014,34 @@
           "save_actions": {
             "title": "Guardar cambios",
             "description": "Después de revisar todo, guarda para actualizar el panel y usar estos datos en los próximos pasos."
+          }
+        }
+      },
+      "cos_page": {
+        "steps": {
+          "page": {
+            "title": "Change of Status",
+            "description": "Esta pestaña concentra el módulo COS posterior al I-20, separado del onboarding y de los formularios universitarios."
+          },
+          "header": {
+            "title": "Estado del módulo",
+            "description": "Aquí ves si COS está bloqueado o liberado para continuar."
+          },
+          "status": {
+            "title": "Desbloqueo por I-20",
+            "description": "El wizard COS solo debe abrirse después de que el equipo registre el I-20 emitido."
+          },
+          "steps": {
+            "title": "Etapas COS",
+            "description": "El módulo se organizará en I-539, I-539A, carta USCIS, checklist y generación/envío."
+          },
+          "readiness": {
+            "title": "Prerrequisitos",
+            "description": "Usa esta área para confirmar I-20, carta de aceptación y plazo del I-94 cuando estén disponibles."
+          },
+          "upl": {
+            "title": "Aviso UPL",
+            "description": "Este aviso protege el flujo: MIGMA no presta asesoría legal y el estudiante confirma los contenidos narrativos."
           }
         }
       },

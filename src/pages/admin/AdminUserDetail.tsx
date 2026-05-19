@@ -27,6 +27,7 @@ import {
   Shield,
   Tag,
   TrendingUp,
+  Upload,
   User,
   UserCheck,
   Workflow,
@@ -85,6 +86,45 @@ function formatCurrency(value: string | number | null) {
 function toLabel(value: string | null | undefined) {
   if (!value) return '—';
   return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function normalizeServiceFamily(value: string | null | undefined) {
+  const normalized = String(value ?? '').trim().toLowerCase().replace(/[_\s]+/g, '-');
+  if (!normalized) return null;
+  if (normalized === 'cos' || normalized.startsWith('cos-') || normalized.includes('change-of-status')) return 'cos';
+  if (normalized === 'transfer' || normalized.startsWith('transfer-')) return 'transfer';
+  if (normalized === 'initial' || normalized.startsWith('initial-')) return 'initial';
+  return normalized;
+}
+
+function isCosProfile(profile: Pick<CaseDetailPage['profile'], 'service_type' | 'student_process_type'>) {
+  return normalizeServiceFamily(profile.student_process_type ?? profile.service_type) === 'cos';
+}
+
+type AdminCosChecklistStatus = 'pending' | 'uploaded' | 'approved' | 'rejected' | 'not_applicable';
+type AdminCosChecklistCategory = 'applicant' | 'dependent' | 'evidence' | 'uscis' | 'internal';
+
+type AdminCosChecklistItem = {
+  id: string;
+  item_key: string;
+  label: string;
+  category: AdminCosChecklistCategory;
+  required: boolean;
+  status: AdminCosChecklistStatus;
+  storage_path: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  dependent_id: string | null;
+  updated_at: string;
+};
+
+function sanitizeStorageFileName(value: string) {
+  return value.trim().replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'i20.pdf';
 }
 
 function fmtDate(iso: string | null | undefined) {
@@ -344,6 +384,36 @@ function stageBadge(stage: string | null) {
   return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
 }
 
+function cosChecklistStatusBadge(status: AdminCosChecklistStatus) {
+  if (status === 'approved') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+  if (status === 'uploaded') return 'bg-sky-500/15 text-sky-300 border-sky-500/30';
+  if (status === 'rejected') return 'bg-red-500/15 text-red-300 border-red-500/30';
+  if (status === 'not_applicable') return 'bg-slate-500/15 text-slate-300 border-slate-500/30';
+  return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+}
+
+function cosChecklistStatusLabel(status: AdminCosChecklistStatus) {
+  const labels: Record<AdminCosChecklistStatus, string> = {
+    pending: 'Pending',
+    uploaded: 'Uploaded',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    not_applicable: 'Not applicable',
+  };
+  return labels[status];
+}
+
+function cosChecklistCategoryLabel(category: AdminCosChecklistCategory) {
+  const labels: Record<AdminCosChecklistCategory, string> = {
+    applicant: 'Applicant',
+    dependent: 'Dependent',
+    evidence: 'Evidence',
+    uscis: 'USCIS',
+    internal: 'Internal',
+  };
+  return labels[category];
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -448,13 +518,14 @@ function MentorAssignSection({ profileId, profileEmail, currentMentorId }: { pro
 // Tabs
 // ---------------------------------------------------------------------------
 
-type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups' | 'survey' | 'journey' | 'scholarship' | 'support';
+type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups' | 'survey' | 'journey' | 'scholarship' | 'cos' | 'support';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'journey', label: 'Journey' },
   { id: 'survey', label: 'Survey' },
   { id: 'scholarship', label: 'Scholarships' },
+  { id: 'cos', label: 'COS' },
   { id: 'support', label: 'AI Support' },
   { id: 'orders', label: 'Orders' },
   { id: 'documents', label: 'Documents' },
@@ -995,6 +1066,627 @@ function OrdersTab({
           </CardContent>
         </Card>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: COS
+// ---------------------------------------------------------------------------
+
+function CosAdminTab({
+  detail,
+  adminId,
+  accessRole,
+  onRefresh,
+}: {
+  detail: CaseDetailPage;
+  adminId: string | null;
+  accessRole: 'admin' | 'mentor';
+  onRefresh: () => void;
+}) {
+  const existingCase = detail.cosCase;
+  const existingI20 = detail.cosI20Record;
+  const [schoolName, setSchoolName] = useState(existingI20?.school_name ?? detail.institutionApplication?.institutions?.name ?? '');
+  const [sevisId, setSevisId] = useState(existingI20?.sevis_id ?? '');
+  const [issuedAt, setIssuedAt] = useState(existingI20?.issued_at ?? '');
+  const [programStartDate, setProgramStartDate] = useState(existingI20?.program_start_date ?? '');
+  const [totalCostUsd, setTotalCostUsd] = useState(existingI20?.total_cost_usd != null ? String(existingI20.total_cost_usd) : '');
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [checklistItems, setChecklistItems] = useState<AdminCosChecklistItem[]>([]);
+  const [checklistLoading, setChecklistLoading] = useState(false);
+  const [checklistMessage, setChecklistMessage] = useState<string | null>(null);
+  const [reviewingItemId, setReviewingItemId] = useState<string | null>(null);
+  const [rejectingItemId, setRejectingItemId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [openingItemId, setOpeningItemId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSchoolName(existingI20?.school_name ?? detail.institutionApplication?.institutions?.name ?? '');
+    setSevisId(existingI20?.sevis_id ?? '');
+    setIssuedAt(existingI20?.issued_at ?? '');
+    setProgramStartDate(existingI20?.program_start_date ?? '');
+    setTotalCostUsd(existingI20?.total_cost_usd != null ? String(existingI20.total_cost_usd) : '');
+    setFile(null);
+    setMessage(null);
+    setSignedUrl(null);
+  }, [detail.institutionApplication?.institutions?.name, existingI20]);
+
+  const canSave = isCosProfile(detail.profile) && schoolName.trim() && sevisId.trim() && issuedAt && programStartDate && totalCostUsd !== '';
+  const checklistUploaded = checklistItems.filter(item => item.status === 'uploaded').length;
+  const checklistApproved = checklistItems.filter(item => item.status === 'approved').length;
+  const checklistRejected = checklistItems.filter(item => item.status === 'rejected').length;
+  const checklistPending = checklistItems.filter(item => item.status === 'pending').length;
+  const checklistAllUploaded = checklistItems.length > 0 && checklistItems.every(item => !item.required || ['uploaded', 'approved', 'not_applicable'].includes(item.status));
+  const checklistComplete = checklistItems.length > 0 && checklistItems.every(item => !item.required || ['approved', 'not_applicable'].includes(item.status));
+
+  const loadCosChecklist = useCallback(async () => {
+    if (!existingCase?.id) {
+      setChecklistItems([]);
+      return;
+    }
+
+    setChecklistLoading(true);
+    setChecklistMessage(null);
+
+    const { data, error } = await supabase
+      .from('cos_document_checklist')
+      .select('id, item_key, label, category, required, status, storage_path, file_url, file_name, mime_type, file_size_bytes, reviewed_by, reviewed_at, rejection_reason, dependent_id, updated_at')
+      .eq('cos_case_id', existingCase.id)
+      .eq('profile_id', detail.profile.id)
+      .order('category', { ascending: true })
+      .order('item_key', { ascending: true });
+
+    setChecklistLoading(false);
+
+    if (error) {
+      setChecklistMessage(`Error: ${error.message}`);
+      return;
+    }
+
+    setChecklistItems((data ?? []) as AdminCosChecklistItem[]);
+  }, [detail.profile.id, existingCase?.id]);
+
+  useEffect(() => {
+    void loadCosChecklist();
+  }, [loadCosChecklist]);
+
+  const handleOpenI20 = async () => {
+    const path = existingI20?.file_path;
+    if (!path) return;
+    setMessage(null);
+    const url = await getSecureUrl(`cos-documents/${path}`);
+    if (url) {
+      setSignedUrl(url);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      setMessage('Error: could not create a secure URL for the I-20 file.');
+    }
+  };
+
+  const handleOpenChecklistFile = async (item: AdminCosChecklistItem) => {
+    const path = item.storage_path;
+    if (!path) {
+      setChecklistMessage('Error: this checklist item has no uploaded file.');
+      return;
+    }
+
+    setOpeningItemId(item.id);
+    setChecklistMessage(null);
+    const url = await getSecureUrl(`cos-documents/${path}`);
+    setOpeningItemId(null);
+
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      setChecklistMessage('Error: could not create a secure URL for this document.');
+    }
+  };
+
+  const updateChecklistReview = async (item: AdminCosChecklistItem, status: 'approved' | 'rejected', reason: string | null = null) => {
+    if (!adminId) {
+      setChecklistMessage('Error: reviewer session not found.');
+      return;
+    }
+
+    if (status === 'rejected' && !reason?.trim()) {
+      setChecklistMessage('Error: rejection reason is required.');
+      return;
+    }
+
+    setReviewingItemId(item.id);
+    setChecklistMessage(null);
+
+    const { data, error } = await supabase
+      .from('cos_document_checklist')
+      .update({
+        status,
+        reviewed_by: adminId,
+        reviewed_at: new Date().toISOString(),
+        rejection_reason: status === 'rejected' ? reason?.trim() : null,
+      })
+      .eq('id', item.id)
+      .select('id, item_key, label, category, required, status, storage_path, file_url, file_name, mime_type, file_size_bytes, reviewed_by, reviewed_at, rejection_reason, dependent_id, updated_at')
+      .single();
+
+    setReviewingItemId(null);
+
+    if (error) {
+      setChecklistMessage(`Error: ${error.message}`);
+      return;
+    }
+
+    setChecklistItems(current => current.map(row => row.id === item.id ? data as AdminCosChecklistItem : row));
+    setRejectingItemId(null);
+    setRejectReason('');
+    setChecklistMessage(status === 'approved' ? 'Document approved.' : 'Document rejected.');
+    onRefresh();
+  };
+
+  const handleSave = async () => {
+    if (!isCosProfile(detail.profile)) {
+      setMessage('Error: COS controls are only available for COS students.');
+      return;
+    }
+
+    const parsedCost = Number(totalCostUsd);
+    if (!canSave || !Number.isFinite(parsedCost) || parsedCost < 0) {
+      setMessage('Error: fill school, SEVIS ID, issue date, program start date and total cost.');
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+
+    let cosCaseId = existingCase?.id ?? null;
+    if (!cosCaseId) {
+      const { data: createdCase, error: caseError } = await supabase
+        .from('cos_cases')
+        .insert({
+          profile_id: detail.profile.id,
+          service_request_id: detail.primaryRequest?.id ?? null,
+          institution_application_id: detail.institutionApplication?.id ?? null,
+          status: 'blocked',
+          has_dependents: (detail.profile.num_dependents ?? 0) > 0,
+          i94_expiry_date: detail.profile.cos_i94_expiry_date ?? null,
+          metadata: {
+            created_from: 'admin_crm_i20_tab',
+          },
+        })
+        .select('id')
+        .single();
+
+      if (caseError || !createdCase?.id) {
+        setSaving(false);
+        setMessage(`Error: ${caseError?.message ?? 'could not create COS case.'}`);
+        return;
+      }
+
+      cosCaseId = createdCase.id;
+    }
+
+    let nextFilePath: string | null | undefined;
+    if (file) {
+      const fileName = sanitizeStorageFileName(file.name);
+      const filePath = `${detail.profile.id}/i20/${Date.now()}-${fileName}`;
+      const { error: uploadError } = await supabase.storage
+        .from('cos-documents')
+        .upload(filePath, file, {
+          contentType: file.type || 'application/pdf',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        setSaving(false);
+        setMessage(`Error: ${uploadError.message}`);
+        return;
+      }
+
+      nextFilePath = filePath;
+    }
+
+    const i20Payload: Record<string, unknown> = {
+      cos_case_id: cosCaseId,
+      profile_id: detail.profile.id,
+      institution_application_id: detail.institutionApplication?.id ?? null,
+      school_name: schoolName.trim(),
+      sevis_id: sevisId.trim(),
+      issued_at: issuedAt,
+      program_start_date: programStartDate,
+      total_cost_usd: parsedCost,
+      recorded_by: adminId,
+      metadata: {
+        source: 'admin_crm',
+      },
+    };
+
+    if (nextFilePath) {
+      i20Payload.file_path = nextFilePath;
+      i20Payload.file_url = null;
+    }
+
+    const { error: i20Error } = await supabase
+      .from('cos_i20_records')
+      .upsert(i20Payload, { onConflict: 'cos_case_id' })
+      .select('id')
+      .single();
+
+    if (i20Error) {
+      setSaving(false);
+      setMessage(`Error: ${i20Error.message}`);
+      return;
+    }
+
+    const nextCaseStatus = existingCase && existingCase.status !== 'blocked'
+      ? existingCase.status
+      : 'in_progress';
+
+    const { error: unlockError } = await supabase
+      .from('cos_cases')
+      .update({
+        service_request_id: detail.primaryRequest?.id ?? null,
+        institution_application_id: detail.institutionApplication?.id ?? null,
+        status: nextCaseStatus,
+        has_dependents: (detail.profile.num_dependents ?? 0) > 0,
+        i94_expiry_date: detail.profile.cos_i94_expiry_date ?? null,
+        unlocked_at: existingCase?.unlocked_at ?? new Date().toISOString(),
+      })
+      .eq('id', cosCaseId);
+
+    setSaving(false);
+
+    if (unlockError) {
+      setMessage(`Error: ${unlockError.message}`);
+      return;
+    }
+
+    setMessage('I-20 saved. COS module unlocked for the student.');
+    onRefresh();
+  };
+
+  if (!isCosProfile(detail.profile)) {
+    return (
+      <SectionCard title="Change of Status" icon={Shield}>
+        <EmptyState icon={Shield} message="This area is only available for COS students." />
+      </SectionCard>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.85fr] gap-5">
+        <SectionCard title="COS I-20 Registration" icon={FileText}>
+          <div className="space-y-4">
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+            Registering the I-20 here is the operational trigger that unlocks the student Change of Status module.
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">School</span>
+              <Input
+                value={schoolName}
+                onChange={(event) => setSchoolName(event.target.value)}
+                placeholder="Institution name"
+                className="bg-black/40 border-white/10 text-white"
+              />
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">SEVIS ID</span>
+              <Input
+                value={sevisId}
+                onChange={(event) => setSevisId(event.target.value.toUpperCase())}
+                placeholder="N00..."
+                className="bg-black/40 border-white/10 text-white font-mono"
+              />
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Issue Date</span>
+              <Input
+                type="date"
+                value={issuedAt}
+                onChange={(event) => setIssuedAt(event.target.value)}
+                className="bg-black/40 border-white/10 text-white"
+              />
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Program Start</span>
+              <Input
+                type="date"
+                value={programStartDate}
+                onChange={(event) => setProgramStartDate(event.target.value)}
+                className="bg-black/40 border-white/10 text-white"
+              />
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Total Cost USD</span>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={totalCostUsd}
+                onChange={(event) => setTotalCostUsd(event.target.value)}
+                placeholder="0.00"
+                className="bg-black/40 border-white/10 text-white"
+              />
+            </label>
+
+            <label className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">I-20 File</span>
+              <Input
+                type="file"
+                accept="application/pdf,image/png,image/jpeg"
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                className="bg-black/40 border-white/10 text-white file:mr-3 file:rounded-md file:border-0 file:bg-gold-medium file:px-3 file:py-1 file:text-xs file:font-bold file:text-black"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button
+              onClick={handleSave}
+              disabled={saving || !canSave}
+              className="bg-gold-medium text-black hover:bg-gold-light font-black"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              Save I-20 and Unlock COS
+            </Button>
+            {existingI20?.file_path && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleOpenI20}
+                className="border-white/10 bg-white/5 text-white hover:bg-white/10"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open I-20
+              </Button>
+            )}
+            {message && (
+              <span className={cn('text-xs font-semibold', message.startsWith('Error') ? 'text-red-400' : 'text-emerald-400')}>
+                {message}
+              </span>
+            )}
+          </div>
+
+          {signedUrl && (
+            <p className="text-xs text-gray-500">
+              Secure URL generated for this session.
+            </p>
+          )}
+          </div>
+        </SectionCard>
+
+        <div className="space-y-5">
+          <SectionCard title="COS Status" icon={Shield}>
+            <div className="space-y-3">
+              <InfoRow label="Case Status" value={toLabel(existingCase?.status)} />
+              <InfoRow label="Student Module" value={
+                existingI20
+                  ? <Badge className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-sm">Unlocked</Badge>
+                  : <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-sm">Blocked</Badge>
+              } />
+              <InfoRow label="Submission Method" value={toLabel(existingCase?.submission_method)} />
+              <InfoRow label="Current Step" value={toLabel(existingCase?.current_step)} />
+              <InfoRow label="I-94 Expiry" value={detail.profile.cos_i94_expiry_date ? fmtDate(detail.profile.cos_i94_expiry_date) : '—'} />
+              <InfoRow label="Dependents" value={detail.profile.num_dependents != null ? String(detail.profile.num_dependents) : '—'} />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Registered I-20" icon={CalendarDays}>
+            {existingI20 ? (
+              <div className="space-y-3">
+                <InfoRow label="School" value={existingI20.school_name} />
+                <InfoRow label="SEVIS ID" value={<span className="font-mono text-xs">{existingI20.sevis_id}</span>} />
+                <InfoRow label="Issue Date" value={fmtDate(existingI20.issued_at)} />
+                <InfoRow label="Program Start" value={fmtDate(existingI20.program_start_date)} />
+                <InfoRow label="Total Cost" value={formatCurrency(existingI20.total_cost_usd)} />
+                <InfoRow label="Recorded" value={fmtDate(existingI20.recorded_at)} />
+              </div>
+            ) : (
+              <EmptyState icon={FileText} message="No I-20 registered yet." />
+            )}
+          </SectionCard>
+        </div>
+      </div>
+
+      <SectionCard title="COS Documents Review" icon={FileText}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="rounded-lg border border-white/5 bg-white/[0.03] p-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">Items</div>
+              <div className="mt-1 text-xl font-black text-white">{checklistItems.length}</div>
+            </div>
+            <div className="rounded-lg border border-white/5 bg-white/[0.03] p-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">Pending</div>
+              <div className="mt-1 text-xl font-black text-amber-300">{checklistPending}</div>
+            </div>
+            <div className="rounded-lg border border-white/5 bg-white/[0.03] p-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">Uploaded</div>
+              <div className="mt-1 text-xl font-black text-sky-300">{checklistUploaded}</div>
+            </div>
+            <div className="rounded-lg border border-white/5 bg-white/[0.03] p-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">Approved</div>
+              <div className="mt-1 text-xl font-black text-emerald-300">{checklistApproved}</div>
+            </div>
+            <div className="rounded-lg border border-white/5 bg-white/[0.03] p-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">Rejected</div>
+              <div className="mt-1 text-xl font-black text-red-300">{checklistRejected}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Operational review only: verify file presence, readability and completeness. Do not add legal interpretation or USCIS advice.
+            </span>
+            <Badge className={checklistComplete ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300' : checklistAllUploaded ? 'border-sky-500/30 bg-sky-500/15 text-sky-300' : 'border-amber-500/30 bg-amber-500/15 text-amber-300'}>
+              {checklistComplete ? 'All approved' : checklistAllUploaded ? 'Ready for review' : 'Waiting documents'}
+            </Badge>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-gray-500">
+              Reviewer role: {accessRole}. Uploaded files are stored in the private COS bucket.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void loadCosChecklist()}
+              disabled={checklistLoading}
+              className="w-fit border-white/10 bg-white/5 text-white hover:bg-white/10"
+            >
+              {checklistLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Refresh checklist
+            </Button>
+          </div>
+
+          {checklistMessage && (
+            <div className={cn(
+              'rounded-lg border p-3 text-sm font-semibold',
+              checklistMessage.startsWith('Error')
+                ? 'border-red-500/25 bg-red-500/10 text-red-300'
+                : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+            )}>
+              {checklistMessage}
+            </div>
+          )}
+
+          {checklistLoading ? (
+            <div className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.03] p-5 text-sm text-gray-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading COS checklist...
+            </div>
+          ) : checklistItems.length === 0 ? (
+            <EmptyState icon={FileText} message="No COS checklist items found yet." />
+          ) : (
+            <div className="space-y-3">
+              {checklistItems.map((item) => {
+                const canReview = item.status === 'uploaded' || item.status === 'rejected' || item.status === 'approved';
+                const isBusy = reviewingItemId === item.id;
+                const isOpening = openingItemId === item.id;
+                return (
+                  <div key={item.id} className="rounded-lg border border-white/5 bg-white/[0.03] p-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-black text-white">{item.label}</h4>
+                          <Badge className={cn('rounded-sm border text-[10px] font-black uppercase', cosChecklistStatusBadge(item.status))}>
+                            {cosChecklistStatusLabel(item.status)}
+                          </Badge>
+                          {item.required && (
+                            <Badge className="rounded-sm border border-gold-medium/30 bg-gold-medium/10 text-[10px] font-black uppercase text-gold-light">
+                              Required
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                          <span>{cosChecklistCategoryLabel(item.category)}</span>
+                          {item.file_name && <span>• {item.file_name}</span>}
+                          {item.file_size_bytes != null && <span>• {(item.file_size_bytes / 1024 / 1024).toFixed(2)} MB</span>}
+                          <span>• Updated {fmtDate(item.updated_at)}</span>
+                        </div>
+                        {item.reviewed_at && (
+                          <p className="text-xs text-gray-500">
+                            Reviewed {fmtDate(item.reviewed_at)}
+                          </p>
+                        )}
+                        {item.rejection_reason && (
+                          <p className="rounded-md border border-red-500/20 bg-red-500/10 p-2 text-xs font-semibold text-red-300">
+                            {item.rejection_reason}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void handleOpenChecklistFile(item)}
+                          disabled={!item.storage_path || isOpening}
+                          className="border-white/10 bg-white/5 text-white hover:bg-white/10"
+                        >
+                          {isOpening ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                          Open
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => void updateChecklistReview(item, 'approved')}
+                          disabled={!canReview || isBusy || !adminId}
+                          className="bg-emerald-500 text-black hover:bg-emerald-400"
+                        >
+                          {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                          Approve
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setRejectingItemId(item.id);
+                            setRejectReason(item.rejection_reason ?? '');
+                            setChecklistMessage(null);
+                          }}
+                          disabled={!canReview || isBusy || !adminId}
+                          className="border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </div>
+
+                    {rejectingItemId === item.id && (
+                      <div className="mt-4 rounded-lg border border-red-500/20 bg-black/30 p-3">
+                        <label className="space-y-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-red-300">Rejection reason</span>
+                          <Input
+                            value={rejectReason}
+                            onChange={(event) => setRejectReason(event.target.value)}
+                            placeholder="Explain what needs to be fixed operationally."
+                            className="bg-black/40 border-white/10 text-white"
+                          />
+                        </label>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => void updateChecklistReview(item, 'rejected', rejectReason)}
+                            disabled={isBusy || !rejectReason.trim()}
+                            className="bg-red-500 text-white hover:bg-red-400"
+                          >
+                            {isBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Confirm rejection
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setRejectingItemId(null);
+                              setRejectReason('');
+                            }}
+                            className="border-white/10 bg-white/5 text-white hover:bg-white/10"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </SectionCard>
     </div>
   );
 }
@@ -2505,17 +3197,22 @@ function HtmlEmailPreview({ html }: { html: string }) {
 
   return (
     <div className="overflow-hidden rounded-md border border-white/10 bg-[#0a0a0a]">
-      <iframe
-        title="Email preview"
-        sandbox=""
-        referrerPolicy="no-referrer"
-        srcDoc={sanitizedHtml}
-        className={cn('w-full bg-[#0a0a0a]', expanded ? 'h-[720px]' : 'h-[420px]')}
-      />
+      {expanded && (
+        <iframe
+          title="Email preview"
+          sandbox=""
+          referrerPolicy="no-referrer"
+          srcDoc={sanitizedHtml}
+          className="w-full bg-[#0a0a0a] h-[600px]"
+        />
+      )}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full border-t border-white/10 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 transition-colors hover:text-gray-300"
+        className={cn(
+          'w-full py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 transition-colors hover:text-gray-300',
+          expanded && 'border-t border-white/10'
+        )}
       >
         {expanded ? '▲ Collapse Preview' : '▼ Expand Preview'}
       </button>
@@ -2562,12 +3259,16 @@ function MessagesTab({ messages }: { messages: CrmMessage[] }) {
         const metadata = msg.message_metadata as Record<string, unknown> | null;
         const analysis = metadata?.analysis as Record<string, unknown> | null;
         const htmlBody = typeof metadata?.html === 'string' ? metadata.html : null;
+        const notifyStatus = typeof metadata?.status === 'string' ? metadata.status : null;
+        const notifyTrigger = typeof metadata?.trigger === 'string'
+          ? (metadata.trigger as string).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          : null;
 
         return (
           <Card key={msg.id} className={`bg-black/30 border ${isInbound ? 'border-sky-500/20' : 'border-white/5'}`}>
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className={`text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 ${
                     isInbound
                       ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
@@ -2575,6 +3276,20 @@ function MessagesTab({ messages }: { messages: CrmMessage[] }) {
                   }`}>
                     {isInbound ? '← Inbound' : '→ Outbound'}
                   </span>
+                  {notifyStatus && (
+                    <span className={`text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 ${
+                      notifyStatus === 'sent'
+                        ? 'bg-green-500/10 text-green-300 border-green-500/20'
+                        : 'bg-red-500/10 text-red-400 border-red-500/20'
+                    }`}>
+                      {notifyStatus === 'sent' ? '✓ Sent' : '✗ Failed'}
+                    </span>
+                  )}
+                  {notifyTrigger && (
+                    <span className="text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 bg-violet-500/10 text-violet-300 border-violet-500/20">
+                      {notifyTrigger}
+                    </span>
+                  )}
                   {msg.classification && (
                     <span className="text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 bg-white/5 text-gray-400 border-white/10">
                       {msg.classification.replace(/_/g, ' ')}
@@ -4010,6 +4725,12 @@ export function AdminUserDetail() {
     if (!error) load();
   }
 
+  useEffect(() => {
+    if (detail && activeTab === 'cos' && !isCosProfile(detail.profile)) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, detail]);
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -4037,6 +4758,7 @@ export function AdminUserDetail() {
 
   const { profile, operationalStage } = detail;
   const orderDocuments = buildVisaOrderDocuments(detail.visaOrders);
+  const visibleTabs = isCosProfile(profile) ? TABS : TABS.filter((tab) => tab.id !== 'cos');
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -4087,7 +4809,7 @@ export function AdminUserDetail() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-white/5 overflow-x-auto scrollbar-hide">
-        {TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const count =
             tab.id === 'orders' ? detail.visaOrders.length
             : tab.id === 'documents' ? detail.identityFiles.length + detail.srDocuments.length + detail.studentDocuments.length + detail.globalDocumentRequests.length + detail.institutionForms.length + orderDocuments.length
@@ -4096,6 +4818,7 @@ export function AdminUserDetail() {
             : tab.id === 'followups' ? detail.followups.length
             : tab.id === 'survey' ? detail.surveyResponses.length
             : tab.id === 'journey' ? (detail.studentDocuments.length + detail.stageHistory.length) || null
+            : tab.id === 'cos' ? (detail.cosI20Record ? 1 : null)
             : tab.id === 'support' ? detail.supportHandoffs.filter(h => h.status !== 'resolved').length || liveSupportChatMessages.length || null
             : null;
 
@@ -4194,6 +4917,14 @@ export function AdminUserDetail() {
         )}
         {activeTab === 'scholarship' && (
           <ScholarshipApprovalTab detail={detail} />
+        )}
+        {activeTab === 'cos' && (
+          <CosAdminTab
+            detail={detail}
+            adminId={currentAdminId}
+            accessRole={context?.accessRole ?? 'admin'}
+            onRefresh={load}
+          />
         )}
         {activeTab === 'support' && (
           <SupportTab

@@ -8,6 +8,7 @@ type StudentDashboardTab =
   | 'applications'
   | 'documents'
   | 'supplemental-data'
+  | 'change-of-status'
   | 'forms'
   | 'rewards'
   | 'support'
@@ -39,6 +40,10 @@ function getDocumentsStorageKey(userId: string) {
 
 function getSupplementalDataStorageKey(userId: string) {
   return `${TOUR_STORAGE_PREFIX}.supplementalData.${userId}`;
+}
+
+function getCosStorageKey(userId: string) {
+  return `${TOUR_STORAGE_PREFIX}.cos.${userId}`;
 }
 
 function getFormsStorageKey(userId: string) {
@@ -103,6 +108,11 @@ export function useStudentDashboardTour({
   const markSupplementalDataTourStatus = useCallback((status: 'completed' | 'started') => {
     if (!userId) return;
     localStorage.setItem(getSupplementalDataStorageKey(userId), status);
+  }, [userId]);
+
+  const markCosTourStatus = useCallback((status: 'completed' | 'started') => {
+    if (!userId) return;
+    localStorage.setItem(getCosStorageKey(userId), status);
   }, [userId]);
 
   const markFormsTourStatus = useCallback((status: 'completed' | 'started') => {
@@ -170,6 +180,11 @@ export function useStudentDashboardTour({
         '[data-tour="student-nav-supplemental-data"]',
         t('student_dashboard.tour.steps.supplemental_data.title'),
         t('student_dashboard.tour.steps.supplemental_data.description'),
+      )),
+      sidebarStep(createStep(
+        '[data-tour="student-nav-change-of-status"]',
+        t('student_dashboard.tour.steps.change_of_status.title'),
+        t('student_dashboard.tour.steps.change_of_status.description'),
       )),
       sidebarStep(createStep(
         '[data-tour="student-nav-forms"]',
@@ -350,6 +365,49 @@ export function useStudentDashboardTour({
         t('student_dashboard.tour.supplemental_data_page.steps.save_actions.title'),
         t('student_dashboard.tour.supplemental_data_page.steps.save_actions.description'),
         'left',
+      ),
+    ];
+
+    return rawSteps.filter(step => typeof step.element === 'string' && queryTarget(step.element));
+  }, [t]);
+
+  const buildCosSteps = useCallback((): DriveStep[] => {
+    const rawSteps: DriveStep[] = [
+      createStep(
+        '[data-tour="student-cos-page"]',
+        t('student_dashboard.tour.cos_page.steps.page.title'),
+        t('student_dashboard.tour.cos_page.steps.page.description'),
+        'bottom',
+      ),
+      createStep(
+        '[data-tour="student-cos-header"]',
+        t('student_dashboard.tour.cos_page.steps.header.title'),
+        t('student_dashboard.tour.cos_page.steps.header.description'),
+        'bottom',
+      ),
+      createStep(
+        '[data-tour="student-cos-status-card"]',
+        t('student_dashboard.tour.cos_page.steps.status.title'),
+        t('student_dashboard.tour.cos_page.steps.status.description'),
+        'bottom',
+      ),
+      createStep(
+        '[data-tour="student-cos-steps"]',
+        t('student_dashboard.tour.cos_page.steps.steps.title'),
+        t('student_dashboard.tour.cos_page.steps.steps.description'),
+        'top',
+      ),
+      createStep(
+        '[data-tour="student-cos-readiness"]',
+        t('student_dashboard.tour.cos_page.steps.readiness.title'),
+        t('student_dashboard.tour.cos_page.steps.readiness.description'),
+        'left',
+      ),
+      createStep(
+        '[data-tour="student-cos-upl"]',
+        t('student_dashboard.tour.cos_page.steps.upl.title'),
+        t('student_dashboard.tour.cos_page.steps.upl.description'),
+        'top',
       ),
     ];
 
@@ -787,6 +845,45 @@ export function useStudentDashboardTour({
     }, 260);
   }, [buildFormsSteps, markFormsTourStatus, ready, setMobileSidebarOpen, t, userId]);
 
+  const startCosTour = useCallback(() => {
+    if (!userId || !ready) return false;
+
+    const steps = buildCosSteps();
+    if (steps.length === 0) return false;
+
+    setMobileSidebarOpen(false);
+    markCosTourStatus('started');
+    driverRef.current?.destroy();
+
+    window.setTimeout(() => {
+      driverRef.current = driver({
+        steps,
+        animate: true,
+        smoothScroll: true,
+        allowClose: true,
+        overlayClickBehavior: 'close',
+        overlayColor: '#0a0a0a',
+        overlayOpacity: 0.72,
+        stagePadding: 8,
+        stageRadius: 10,
+        disableActiveInteraction: true,
+        showProgress: true,
+        showButtons: ['next', 'previous', 'close'],
+        popoverClass: 'migma-student-tour',
+        progressText: t('student_dashboard.tour.progress'),
+        nextBtnText: t('student_dashboard.tour.next'),
+        prevBtnText: t('student_dashboard.tour.previous'),
+        doneBtnText: t('student_dashboard.tour.done'),
+        onDestroyed: () => {
+          markCosTourStatus('completed');
+        },
+      });
+      driverRef.current.drive();
+    }, 260);
+
+    return true;
+  }, [buildCosSteps, markCosTourStatus, ready, setMobileSidebarOpen, t, userId]);
+
   const startRewardsTour = useCallback(() => {
     if (!userId || !ready) return false;
 
@@ -954,6 +1051,22 @@ export function useStudentDashboardTour({
     const timeoutId = window.setTimeout(startFormsTour, 320);
     return () => window.clearTimeout(timeoutId);
   }, [activeTab, ready, showTourPrompt, startFormsTour, userId]);
+
+  useEffect(() => {
+    if (!ready || !userId || activeTab !== 'change-of-status' || showTourPrompt) return;
+    if (driverRef.current?.isActive()) return;
+
+    const existingStatus = localStorage.getItem(getCosStorageKey(userId));
+    if (existingStatus) return;
+
+    const intervalId = window.setInterval(() => {
+      if (driverRef.current?.isActive() || startCosTour()) {
+        window.clearInterval(intervalId);
+      }
+    }, 500);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeTab, ready, showTourPrompt, startCosTour, userId]);
 
   useEffect(() => {
     if (!ready || !userId || activeTab !== 'rewards' || showTourPrompt) return;
