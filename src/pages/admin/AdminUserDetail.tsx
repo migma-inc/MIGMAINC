@@ -88,6 +88,39 @@ function toLabel(value: string | null | undefined) {
   return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function getAdminCosChecklistDisplayLabel(item: Pick<AdminCosChecklistItem, 'item_key' | 'label'>) {
+  const label = item.label || '';
+  if (!label.startsWith('student_dashboard.cos.wizard.checklist.items.')) {
+    return label || toLabel(item.item_key);
+  }
+
+  const key = label.split('.').pop();
+  switch (key) {
+    case 'applicant_passport_bio':
+      return 'Primary applicant passport bio page';
+    case 'applicant_i94':
+      return 'Primary applicant most recent I-94';
+    case 'applicant_status_evidence':
+      return 'Primary applicant current status evidence';
+    case 'applicant_signed_i20':
+      return 'Primary applicant signed I-20';
+    case 'applicant_financial_evidence':
+      return 'Financial evidence';
+    case 'applicant_acceptance_letter':
+      return 'School acceptance letter';
+    case 'dependent_passport_bio':
+      return 'Dependent passport bio page';
+    case 'dependent_i94':
+      return 'Dependent most recent I-94';
+    case 'dependent_status_evidence':
+      return 'Dependent current status evidence';
+    case 'dependent_relationship_evidence':
+      return 'Dependent family relationship evidence';
+    default:
+      return toLabel(item.item_key);
+  }
+}
+
 function normalizeServiceFamily(value: string | null | undefined) {
   const normalized = String(value ?? '').trim().toLowerCase().replace(/[_\s]+/g, '-');
   if (!normalized) return null;
@@ -1576,7 +1609,7 @@ function CosAdminTab({
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-black text-white">{item.label}</h4>
+                          <h4 className="font-black text-white">{getAdminCosChecklistDisplayLabel(item)}</h4>
                           <Badge className={cn('rounded-sm border text-[10px] font-black uppercase', cosChecklistStatusBadge(item.status))}>
                             {cosChecklistStatusLabel(item.status)}
                           </Badge>

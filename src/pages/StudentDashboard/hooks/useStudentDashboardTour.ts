@@ -43,7 +43,7 @@ function getSupplementalDataStorageKey(userId: string) {
 }
 
 function getCosStorageKey(userId: string) {
-  return `${TOUR_STORAGE_PREFIX}.cos.${userId}`;
+  return `${TOUR_STORAGE_PREFIX}.cos.v2.${userId}`;
 }
 
 function getFormsStorageKey(userId: string) {
@@ -396,6 +396,48 @@ export function useStudentDashboardTour({
         t('student_dashboard.tour.cos_page.steps.steps.title'),
         t('student_dashboard.tour.cos_page.steps.steps.description'),
         'top',
+      ),
+      createStep(
+        '[data-tour="student-cos-step-i539"]',
+        t('student_dashboard.tour.cos_page.steps.step_i539.title'),
+        t('student_dashboard.tour.cos_page.steps.step_i539.description'),
+        'right',
+      ),
+      createStep(
+        '[data-tour="student-cos-step-i539a"]',
+        t('student_dashboard.tour.cos_page.steps.step_i539a.title'),
+        t('student_dashboard.tour.cos_page.steps.step_i539a.description'),
+        'right',
+      ),
+      createStep(
+        '[data-tour="student-cos-step-uscis-letter"]',
+        t('student_dashboard.tour.cos_page.steps.step_uscis_letter.title'),
+        t('student_dashboard.tour.cos_page.steps.step_uscis_letter.description'),
+        'right',
+      ),
+      createStep(
+        '[data-tour="student-cos-step-checklist"]',
+        t('student_dashboard.tour.cos_page.steps.step_checklist.title'),
+        t('student_dashboard.tour.cos_page.steps.step_checklist.description'),
+        'right',
+      ),
+      createStep(
+        '[data-tour="student-cos-step-submission-method"]',
+        t('student_dashboard.tour.cos_page.steps.step_submission_method.title'),
+        t('student_dashboard.tour.cos_page.steps.step_submission_method.description'),
+        'right',
+      ),
+      createStep(
+        '[data-tour="student-cos-step-generation-submission"]',
+        t('student_dashboard.tour.cos_page.steps.step_generation_submission.title'),
+        t('student_dashboard.tour.cos_page.steps.step_generation_submission.description'),
+        'right',
+      ),
+      createStep(
+        '[data-tour="student-cos-wizard"]',
+        t('student_dashboard.tour.cos_page.steps.wizard.title'),
+        t('student_dashboard.tour.cos_page.steps.wizard.description'),
+        'left',
       ),
       createStep(
         '[data-tour="student-cos-readiness"]',

@@ -1849,7 +1849,7 @@
           "mail_point_1": "Use PDFs, print when needed, physically sign, and organize the document package.",
           "mail_point_2": "Mail it to the USCIS address/lockbox and keep tracking proof.",
           "mail_fee_notice": "Fees and mailing addresses are official USCIS information, may change, and must be checked before mailing.",
-          "ack": "I declare that I understand MIGMA is not recommending this path and that submission is my responsibility.",
+          "ack": "I declare that I understand MIGMA is not recommending the path I chose and that submission is my responsibility.",
           "choose_online": "Continue online",
           "choose_mail": "Continue by mail",
           "saving": "Saving choice",
@@ -1860,6 +1860,89 @@
           "mail_required_desc": "Because this COS case has dependents, this workflow requires a mail package to include each dependent's I-539A.",
           "mail_required_ack": "I understand that, with dependents in this case, the mail path is required in this workflow and submission remains my responsibility.",
           "confirm_mail": "Confirm mail"
+        },
+        "generation_submission": {
+          "title": "Generation and submission",
+          "desc": "This step gathers the final prerequisites before preparing the materials for the selected path.",
+          "disclaimer": "MIGMA does not submit forms to USCIS, does not pay official fees, and does not represent the student. Final review, signature, payment, and submission are the student's personal acts.",
+          "case_status": "Step status",
+          "saved_path": "Saved path",
+          "expected_output": "Expected output",
+          "online_output": "Personal summary and myUSCIS guide",
+          "mail_output": "Mail PDF package",
+          "no_path_output": "Waiting for selection",
+          "readiness_title": "Final prerequisites",
+          "ready": "Ready",
+          "pending": "Pending",
+          "status_blocked": "Waiting for prerequisites",
+          "status_ready": "Ready for generation",
+          "status_generated": "Documents generated",
+          "status_submitted": "Submitted to USCIS",
+          "online_title": "Online flow",
+          "online_desc": "For the online path, the platform should prepare only a personal summary and the educational guide for direct use in myUSCIS.",
+          "online_badge": "No official I-539 PDF",
+          "online_item_1": "Personal summary with organized data for reference.",
+          "online_item_2": "Educational myUSCIS guide with official links.",
+          "online_item_3": "Future confirmation of submission completed by the student.",
+          "online_guide_title": "myUSCIS guide",
+          "online_step_1": "Create or access the myUSCIS account.",
+          "online_step_2": "Start an I-539 application in the official portal.",
+          "online_step_3": "Complete the information using official documents and true facts.",
+          "online_step_4": "Upload the approved digital documents.",
+          "online_step_5": "Carefully review each screen before continuing.",
+          "online_step_6": "Pay the official fee directly in the USCIS portal.",
+          "online_step_7": "Electronically sign and submit through myUSCIS yourself.",
+          "online_step_8": "Save the receipt number and track the case in the USCIS account.",
+          "official_i539_online": "USCIS I-539 online",
+          "myuscis_account": "myUSCIS account",
+          "online_summary_title": "Planned personal summary",
+          "summary_profile": "Student personal and contact information.",
+          "summary_i20": "I-20 data registered by the team.",
+          "summary_i94": "I-94, current status, and key dates.",
+          "summary_i539": "Structured I-539 answers completed by the student.",
+          "summary_letter": "USCIS letter blocks written by the student.",
+          "summary_documents": "List of approved documents for reference.",
+          "summary_responsibility": "Responsibility notices and official USCIS links.",
+          "online_generation_note": "At this stage we are not generating a PDF yet. The next technical step is turning this summary into a downloadable file without generating an official I-539 form for filing.",
+          "mail_title": "Mail flow",
+          "mail_desc": "For the mail path, the platform should prepare the PDF package and guide printing, manual signature, and physical mailing.",
+          "mail_badge": "I-539 + letter + summary",
+          "mail_with_dependents_badge": "I-539 + I-539A + letter + summary",
+          "mail_item_1": "Official I-539 PDF without MIGMA branding.",
+          "mail_item_2": "USCIS letter and one I-539A per dependent when applicable.",
+          "mail_item_3": "Separate personal summary with MIGMA branding for the student's records.",
+          "mail_package_title": "Planned mail package",
+          "mail_package_i539": "Official I-539 form filled on the USCIS template.",
+          "mail_package_i539a": "{{count}} I-539A form(s), one for each dependent tied to the case.",
+          "mail_package_i539a_not_required": "I-539A is not needed because this case has no dependents.",
+          "mail_package_letter": "USCIS letter written/confirmed by the student.",
+          "mail_package_supporting_docs": "Supporting documents approved in the checklist.",
+          "mail_package_summary": "Separate personal summary for the student's internal review.",
+          "mail_no_branding_note": "PDFs intended for USCIS must not include a MIGMA logo, footer, or branding. Only the personal summary may include MIGMA identification.",
+          "mail_print_title": "Printing, signature, and mailing",
+          "mail_step_1": "Download the package when real generation is available.",
+          "mail_step_2": "Review each PDF and confirm the data matches official documents and the student's answers.",
+          "mail_step_3": "Print and manually sign the fields required by the official forms.",
+          "mail_step_4": "Organize forms, letter, and supporting documents into one physical package.",
+          "mail_step_5": "Mail it through the student's chosen service and keep proof/tracking.",
+          "mail_address_title": "Always-current USCIS address",
+          "mail_address_desc": "Before mailing, the student must check the official USCIS I-539 filing address page. Lockbox addresses and rules can change.",
+          "official_i539_addresses": "Official I-539 addresses",
+          "mail_generation_note": "At this stage we are not generating real PDFs yet. The next technical step is mapping and validating the local templates before any function or remote generation.",
+          "choose_path_first": "Choose Online or Mail before preparing final generation.",
+          "button_blocked": "Waiting for prerequisites",
+          "button_online": "Generate summary and guide",
+          "button_mail": "Generate mail package",
+          "readiness": {
+            "i20": "I-20 registered",
+            "i539": "I-539 complete",
+            "i539a": "I-539A",
+            "i539a_required": "Required because there are dependents.",
+            "i539a_not_required": "Not required for this case.",
+            "letter": "USCIS letter complete",
+            "checklist": "Checklist approved",
+            "submission": "Submission path selected"
+          }
         }
       }
     },
@@ -2035,7 +2118,35 @@
           },
           "steps": {
             "title": "COS steps",
-            "description": "The module will be organized into I-539, I-539A, USCIS letter, checklist, and generation/submission."
+            "description": "This column is the main COS navigation. Click a step to switch the COS Assistant content without scrolling through the whole module."
+          },
+          "step_i539": {
+            "title": "I-539",
+            "description": "This step holds objective information for the primary applicant. Responses are saved automatically."
+          },
+          "step_i539a": {
+            "title": "I-539A",
+            "description": "This step is only required when the COS case has dependents. Dependents are registered by the team, not by the student."
+          },
+          "step_uscis_letter": {
+            "title": "USCIS letter",
+            "description": "The student writes and confirms the narrative blocks. MIGMA keeps the content educational and does not provide legal advice."
+          },
+          "step_checklist": {
+            "title": "Checklist",
+            "description": "Upload the requested documents. This step is complete only when required documents are approved or marked not applicable."
+          },
+          "step_submission_method": {
+            "title": "Online or mail",
+            "description": "The student chooses the submission path based on official instructions. The platform does not recommend a strategy."
+          },
+          "step_generation_submission": {
+            "title": "Generation and submission",
+            "description": "This step shows final prerequisites and generation/submission materials based on the selected path."
+          },
+          "wizard": {
+            "title": "COS Assistant",
+            "description": "This panel shows only the step selected on the left. Use the step column to move through the module."
           },
           "readiness": {
             "title": "Prerequisites",

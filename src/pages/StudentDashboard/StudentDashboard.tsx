@@ -801,10 +801,6 @@ type CosDependentFormState = {
   part4_acknowledged: boolean;
 };
 
-type CosNewDependentFormState = Omit<CosDependentFormState, 'id' | 'relationship'> & {
-  relationship: DashboardCosDependent['relationship'] | '';
-};
-
 type CosUscisLetterResponses = {
   request_reason: string;
   academic_background: string;
@@ -829,6 +825,7 @@ type CosUscisLetterResponses = {
 
 type CosSaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 type CosSubmissionMethod = DashboardCosCase['submission_method'];
+type CosWizardStepKey = 'i539' | 'i539a' | 'uscis_letter' | 'checklist' | 'submission_method' | 'generation_submission';
 
 type CosChecklistStatus = 'pending' | 'uploaded' | 'approved' | 'rejected' | 'not_applicable';
 type CosChecklistCategory = 'applicant' | 'dependent' | 'evidence' | 'uscis' | 'internal';
@@ -973,24 +970,6 @@ function buildCosDependentFormState(dependent: DashboardCosDependent, fallbackAd
     country_of_citizenship: dependent.country_of_citizenship ?? '',
     current_nonimmigrant_status: dependent.current_nonimmigrant_status ?? '',
     sevis_id: dependent.sevis_id ?? '',
-    i94_number: '',
-    passport_number: '',
-    passport_issuing_country: '',
-    passport_expiration_date: '',
-    us_mailing_address: fallbackAddress,
-    part4_acknowledged: false,
-  };
-}
-
-function buildEmptyCosDependentFormState(fallbackAddress: string): CosNewDependentFormState {
-  return {
-    full_name: '',
-    relationship: '',
-    date_of_birth: '',
-    country_of_birth: '',
-    country_of_citizenship: '',
-    current_nonimmigrant_status: '',
-    sevis_id: '',
     i94_number: '',
     passport_number: '',
     passport_issuing_country: '',
@@ -1176,17 +1155,12 @@ function ChangeOfStatusTab({
   const [dependentForms, setDependentForms] = useState<CosDependentFormState[]>(() =>
     dependents.map(dependent => buildCosDependentFormState(dependent, dependentAddressFallback))
   );
-  const [newDependentForm, setNewDependentForm] = useState<CosNewDependentFormState>(() =>
-    buildEmptyCosDependentFormState(dependentAddressFallback)
-  );
   const [i539aLoaded, setI539aLoaded] = useState(false);
   const [i539aLoading, setI539aLoading] = useState(false);
   const [i539aSaveState, setI539aSaveState] = useState<CosSaveState>('idle');
   const [i539aSaveError, setI539aSaveError] = useState<string | null>(null);
   const [i539aAutosavedAt, setI539aAutosavedAt] = useState<string | null>(null);
   const [i539aResponseIds, setI539aResponseIds] = useState<Record<string, string>>({});
-  const [newDependentSaving, setNewDependentSaving] = useState(false);
-  const [newDependentError, setNewDependentError] = useState<string | null>(null);
   const lastSavedI539ARef = useRef<Record<string, string>>({});
   const [checklistItems, setChecklistItems] = useState<CosChecklistItem[]>([]);
   const [checklistLoading, setChecklistLoading] = useState(false);
@@ -1204,6 +1178,7 @@ function ChangeOfStatusTab({
   const [submissionAck, setSubmissionAck] = useState<Record<'online' | 'mail', boolean>>({ online: false, mail: false });
   const [submissionSaving, setSubmissionSaving] = useState(false);
   const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
+  const [activeCosWizardStep, setActiveCosWizardStep] = useState<CosWizardStepKey>('i539');
   const i539Complete = isCosI539Complete(i539Form);
   const declaredDependentCount = getProfileNumber(userProfile, 'num_dependents');
   const hasDependents = cosCase?.has_dependents || declaredDependentCount > 0 || dependentForms.length > 0;
@@ -1239,11 +1214,73 @@ function ChangeOfStatusTab({
   const submissionMethodComplete = mailRequired
     ? submissionMethod === 'mail'
     : submissionMethod === 'online' || submissionMethod === 'mail';
+  const submissionChoiceAck = submissionAck.online || submissionAck.mail;
   const submissionMethodStepState = submissionMethodComplete ? 'completed' : hasRegisteredI20 ? 'active' : 'pending';
+  const generationI539Ready = i539Complete && i94FormatValid && !programBeforeIssue && !programBeforeEntry;
+  const generationI539aReady = i539aComplete;
+  const generationSubmitted = cosCase?.status === 'submitted_to_uscis' || cosCase?.status === 'completed' || !!cosCase?.submitted_to_uscis_at;
+  const generationDocumentsReady = generationSubmitted || cosCase?.status === 'documents_generated' || !!cosCase?.documents_generated_at;
+  const generationPrerequisites = [
+    {
+      key: 'i20',
+      label: t('student_dashboard.cos.wizard.generation_submission.readiness.i20'),
+      met: hasRegisteredI20,
+      detail: i20Record?.school_name || null,
+    },
+    {
+      key: 'i539',
+      label: t('student_dashboard.cos.wizard.generation_submission.readiness.i539'),
+      met: generationI539Ready,
+      detail: i539ValidationIssues.length > 0 ? i539ValidationIssues[0] : null,
+    },
+    {
+      key: 'i539a',
+      label: t('student_dashboard.cos.wizard.generation_submission.readiness.i539a'),
+      met: generationI539aReady,
+      detail: hasDependents
+        ? t('student_dashboard.cos.wizard.generation_submission.readiness.i539a_required')
+        : t('student_dashboard.cos.wizard.generation_submission.readiness.i539a_not_required'),
+    },
+    {
+      key: 'letter',
+      label: t('student_dashboard.cos.wizard.generation_submission.readiness.letter'),
+      met: uscisLetterComplete,
+      detail: null,
+    },
+    {
+      key: 'checklist',
+      label: t('student_dashboard.cos.wizard.generation_submission.readiness.checklist'),
+      met: checklistComplete,
+      detail: checklistLoading ? t('student_dashboard.cos.wizard.checklist.loading') : null,
+    },
+    {
+      key: 'submission',
+      label: t('student_dashboard.cos.wizard.generation_submission.readiness.submission'),
+      met: submissionMethodComplete,
+      detail: submissionMethod === 'online'
+        ? t('student_dashboard.cos.wizard.submission_method.current_online')
+        : submissionMethod === 'mail'
+          ? t('student_dashboard.cos.wizard.submission_method.current_mail')
+          : t('student_dashboard.cos.wizard.submission_method.current_undecided'),
+    },
+  ];
+  const generationReady = generationPrerequisites.every(item => item.met);
+  const generationSubmissionStepState = generationDocumentsReady ? 'completed' : generationReady ? 'active' : 'pending';
+  const generationStatusLabel = generationSubmitted
+    ? t('student_dashboard.cos.wizard.generation_submission.status_submitted')
+    : generationDocumentsReady
+      ? t('student_dashboard.cos.wizard.generation_submission.status_generated')
+      : generationReady
+        ? t('student_dashboard.cos.wizard.generation_submission.status_ready')
+        : t('student_dashboard.cos.wizard.generation_submission.status_blocked');
 
   useEffect(() => {
-    setSubmissionMethod(cosCase?.submission_method ?? 'undecided');
-    setSubmissionAck({ online: false, mail: false });
+    const savedMethod = cosCase?.submission_method ?? 'undecided';
+    setSubmissionMethod(savedMethod);
+    setSubmissionAck({
+      online: savedMethod === 'online',
+      mail: savedMethod === 'mail',
+    });
     setSubmissionMessage(null);
   }, [cosCase?.id, cosCase?.submission_method]);
 
@@ -1329,6 +1366,25 @@ function ChangeOfStatusTab({
 
     return templates;
   }, [dependentForms, t]);
+  const cosChecklistTemplateByKey = useMemo(
+    () => new Map(cosChecklistTemplates.map(template => [template.item_key, template])),
+    [cosChecklistTemplates]
+  );
+  const getCosChecklistDisplayLabel = useCallback((item: Pick<CosChecklistItem, 'item_key' | 'label'>) => {
+    const templateLabel = cosChecklistTemplateByKey.get(item.item_key)?.label;
+    if (templateLabel) return templateLabel;
+
+    if (item.label?.startsWith('student_dashboard.')) {
+      const translatedLabel = t(item.label);
+      if (translatedLabel !== item.label) return translatedLabel;
+    }
+
+    return item.label || item.item_key.replace(/[_-]+/g, ' ');
+  }, [cosChecklistTemplateByKey, t]);
+  const normalizeCosChecklistItem = useCallback((item: CosChecklistItem): CosChecklistItem => ({
+    ...item,
+    label: getCosChecklistDisplayLabel(item),
+  }), [getCosChecklistDisplayLabel]);
 
   const loadI539Response = useCallback(async () => {
     if (!hasRegisteredI20 || !cosCase?.id || !userProfile?.id) {
@@ -1383,7 +1439,6 @@ function ChangeOfStatusTab({
   useEffect(() => {
     const nextForms = dependents.map(dependent => buildCosDependentFormState(dependent, dependentAddressFallback));
     setDependentForms(nextForms);
-    setNewDependentForm(buildEmptyCosDependentFormState(dependentAddressFallback));
     setI539aLoaded(false);
     setI539aResponseIds({});
     setI539aAutosavedAt(null);
@@ -1542,14 +1597,16 @@ function ChangeOfStatusTab({
 
       const allItems = [...existingItems, ...insertedItems];
       const order = new Map(cosChecklistTemplates.map((template, index) => [template.item_key, index]));
-      setChecklistItems(allItems.sort((a, b) => (order.get(a.item_key) ?? 999) - (order.get(b.item_key) ?? 999)));
+      setChecklistItems(allItems
+        .map(normalizeCosChecklistItem)
+        .sort((a, b) => (order.get(a.item_key) ?? 999) - (order.get(b.item_key) ?? 999)));
     } catch (error) {
       console.error('Error loading COS checklist:', error);
       setChecklistError(t('student_dashboard.cos.wizard.checklist.load_error'));
     } finally {
       setChecklistLoading(false);
     }
-  }, [cosCase?.id, cosChecklistTemplates, hasRegisteredI20, t, userProfile?.id]);
+  }, [cosCase?.id, cosChecklistTemplates, hasRegisteredI20, normalizeCosChecklistItem, t, userProfile?.id]);
 
   useEffect(() => {
     void loadCosChecklist();
@@ -1792,85 +1849,6 @@ function ChangeOfStatusTab({
     ));
   };
 
-  const handleNewDependentChange = (field: keyof CosNewDependentFormState, value: string | boolean) => {
-    setNewDependentForm(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleCreateDependent = async () => {
-    if (!cosCase?.id || !userProfile?.id || !newDependentForm.full_name.trim() || !newDependentForm.relationship) return;
-
-    setNewDependentSaving(true);
-    setNewDependentError(null);
-    const now = new Date().toISOString();
-
-    try {
-      const { data, error } = await supabase
-        .from('cos_dependents')
-        .insert({
-          cos_case_id: cosCase.id,
-          profile_id: userProfile.id,
-          full_name: newDependentForm.full_name,
-          relationship: newDependentForm.relationship,
-          date_of_birth: newDependentForm.date_of_birth || null,
-          country_of_birth: newDependentForm.country_of_birth || null,
-          country_of_citizenship: newDependentForm.country_of_citizenship || null,
-          current_nonimmigrant_status: newDependentForm.current_nonimmigrant_status || null,
-          sevis_id: newDependentForm.sevis_id || null,
-          i539a_required: true,
-          sort_order: dependentForms.length,
-        })
-        .select('id, full_name, relationship, date_of_birth, country_of_birth, country_of_citizenship, current_nonimmigrant_status, sevis_id, i539a_required, sort_order')
-        .single();
-
-      if (error) throw error;
-
-      const { error: caseError } = await supabase
-        .from('cos_cases')
-        .update({ has_dependents: true, submission_method: 'mail', updated_at: now })
-        .eq('id', cosCase.id);
-
-      if (caseError) throw caseError;
-
-      const insertedDependent = data as DashboardCosDependent;
-      const nextDependent = {
-        ...buildCosDependentFormState(insertedDependent, dependentAddressFallback),
-        ...newDependentForm,
-        id: insertedDependent.id,
-        relationship: insertedDependent.relationship,
-      };
-      const completionStatus = isCosI539AComplete(nextDependent) ? 'completed' : 'in_progress';
-      const { data: responseData, error: responseError } = await supabase
-        .from('cos_form_responses')
-        .insert({
-          cos_case_id: cosCase.id,
-          profile_id: userProfile.id,
-          dependent_id: insertedDependent.id,
-          form_type: 'i539a',
-          section_key: 'dependent',
-          responses_json: getCosI539AResponses(nextDependent),
-          completion_status: completionStatus,
-          autosaved_at: now,
-        })
-        .select('id')
-        .single();
-
-      if (responseError) throw responseError;
-
-      setDependentForms(prev => [...prev, nextDependent]);
-      setI539aResponseIds(prev => ({ ...prev, [insertedDependent.id]: responseData.id }));
-      lastSavedI539ARef.current[insertedDependent.id] = JSON.stringify(nextDependent);
-      setI539aAutosavedAt(now);
-      setI539aSaveState('saved');
-      setNewDependentForm(buildEmptyCosDependentFormState(dependentAddressFallback));
-      setI539aLoaded(true);
-    } catch (error) {
-      console.error('Error creating COS dependent:', error);
-      setNewDependentError(t('student_dashboard.cos.wizard.i539a.create_error'));
-    } finally {
-      setNewDependentSaving(false);
-    }
-  };
-
   const handleChecklistUpload = async (item: CosChecklistItem, file: File) => {
     if (!cosCase?.id || !userProfile?.id) return;
 
@@ -1917,7 +1895,7 @@ function ChangeOfStatusTab({
 
       if (error) throw error;
 
-      setChecklistItems(prev => prev.map(current => current.id === item.id ? data as CosChecklistItem : current));
+      setChecklistItems(prev => prev.map(current => current.id === item.id ? normalizeCosChecklistItem(data as CosChecklistItem) : current));
     } catch (error) {
       console.error('Error uploading COS checklist file:', error);
       setChecklistError(t('student_dashboard.cos.wizard.checklist.upload_error'));
@@ -1947,6 +1925,7 @@ function ChangeOfStatusTab({
       if (error) throw error;
 
       setSubmissionMethod(method);
+      setSubmissionAck(prev => ({ ...prev, [method]: true }));
       setSubmissionMessage(t(`student_dashboard.cos.wizard.submission_method.saved_${method}`));
     } catch (error) {
       console.error('Error saving COS submission method:', error);
@@ -1956,7 +1935,8 @@ function ChangeOfStatusTab({
     }
   };
 
-  const scrollToWizard = () => {
+  const scrollToWizard = (stepKey?: CosWizardStepKey) => {
+    if (stepKey) setActiveCosWizardStep(stepKey);
     wizardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -1999,14 +1979,48 @@ function ChangeOfStatusTab({
     return t('student_dashboard.cos.wizard.autosave_idle');
   })();
 
-  const steps = [
+  const steps: Array<{ key: CosWizardStepKey; label: string; state: string }> = [
     { key: 'i539', label: t('student_dashboard.cos.steps.i539'), state: i539StepState },
     { key: 'i539a', label: t('student_dashboard.cos.steps.i539a'), state: i539aStepState },
     { key: 'uscis_letter', label: t('student_dashboard.cos.steps.uscis_letter'), state: uscisLetterStepState },
     { key: 'checklist', label: t('student_dashboard.cos.steps.checklist'), state: checklistStepState },
     { key: 'submission_method', label: t('student_dashboard.cos.steps.submission_method'), state: submissionMethodStepState },
-    { key: 'generation_submission', label: t('student_dashboard.cos.steps.submission'), state: 'pending' },
+    { key: 'generation_submission', label: t('student_dashboard.cos.steps.submission'), state: generationSubmissionStepState },
   ];
+  const nextWizardStepKey = (
+    steps.find(step => step.state === 'attention' || step.state === 'active') ??
+    steps.find(step => step.state !== 'completed' && step.state !== 'not_required') ??
+    steps[0]
+  ).key;
+  const activeWizardStep = steps.find(step => step.key === activeCosWizardStep) ?? steps[0];
+  const wizardPanelClass = (stepKey: CosWizardStepKey) => activeCosWizardStep === stepKey ? 'space-y-6' : 'hidden';
+  const stepStateLabel = (state: string) => (
+    state === 'completed'
+      ? t('student_dashboard.cos.completed')
+      : state === 'attention'
+        ? t('student_dashboard.cos.attention')
+        : state === 'active'
+          ? t('student_dashboard.cos.active')
+          : state === 'not_required'
+            ? t('student_dashboard.cos.not_required')
+            : t('student_dashboard.cos.pending')
+  );
+  const activeWizardAutosaveLabel =
+    activeCosWizardStep === 'i539'
+      ? autosaveLabel
+      : activeCosWizardStep === 'i539a'
+        ? i539aAutosaveLabel
+        : activeCosWizardStep === 'uscis_letter'
+          ? uscisLetterAutosaveLabel
+          : stepStateLabel(activeWizardStep.state);
+  const activeWizardSaveState =
+    activeCosWizardStep === 'i539'
+      ? i539SaveState
+      : activeCosWizardStep === 'i539a'
+        ? i539aSaveState
+        : activeCosWizardStep === 'uscis_letter'
+          ? uscisLetterSaveState
+          : null;
 
   return (
     <div data-tour="student-cos-page" className="mx-auto max-w-6xl space-y-5">
@@ -2059,7 +2073,7 @@ function ChangeOfStatusTab({
                 </p>
               </div>
             </div>
-            <Button onClick={scrollToWizard} disabled={!hasRegisteredI20} className="w-full bg-[#CE9F48] text-black hover:bg-[#b8892f] disabled:opacity-60 sm:w-auto">
+            <Button onClick={() => scrollToWizard(nextWizardStepKey)} disabled={!hasRegisteredI20} className="w-full bg-[#CE9F48] text-black hover:bg-[#b8892f] disabled:opacity-60 sm:w-auto">
               <FileSignature className="h-4 w-4" />
               {t('student_dashboard.cos.start_button')}
             </Button>
@@ -2067,7 +2081,8 @@ function ChangeOfStatusTab({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
+        <aside className="space-y-4 lg:sticky lg:top-4">
         <Card data-tour="student-cos-steps" className="border-[#e3d5bd] bg-white text-[#1f1a14] dark:border-white/10 dark:bg-[#111] dark:text-white">
           <CardHeader>
             <CardTitle className="text-base font-black">
@@ -2076,7 +2091,19 @@ function ChangeOfStatusTab({
           </CardHeader>
           <CardContent className="space-y-3">
             {steps.map((step, index) => (
-              <div key={step.key} className="flex items-center gap-3 rounded-lg border border-[#e3d5bd] bg-[#fffaf0] px-3 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+              <button
+                key={step.key}
+                type="button"
+                data-tour={`student-cos-step-${step.key.replace(/_/g, '-')}`}
+                disabled={!hasRegisteredI20}
+                onClick={() => scrollToWizard(step.key)}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-lg border px-3 py-3 text-left transition-colors disabled:cursor-default disabled:opacity-80',
+                  activeCosWizardStep === step.key
+                    ? 'border-[#CE9F48]/60 bg-[#CE9F48]/10 shadow-[0_0_0_1px_rgba(206,159,72,0.15)]'
+                    : 'border-[#e3d5bd] bg-[#fffaf0] hover:border-[#CE9F48]/40 hover:bg-[#CE9F48]/5 dark:border-white/10 dark:bg-white/[0.03]'
+                )}
+              >
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#f3ead9] text-xs font-black text-[#6f6251] dark:bg-white/5 dark:text-gray-400">
                   {step.state === 'completed' ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" /> : index + 1}
                 </div>
@@ -2092,17 +2119,9 @@ function ChangeOfStatusTab({
                         ? 'border-slate-500/20 bg-slate-500/10 text-slate-600 dark:text-slate-300'
                         : 'border-[#e3d5bd] bg-white text-[#8a7b66] dark:border-white/10 dark:bg-white/5 dark:text-gray-400'
                 )}>
-                  {step.state === 'completed'
-                    ? t('student_dashboard.cos.completed')
-                    : step.state === 'attention'
-                      ? t('student_dashboard.cos.attention')
-                    : step.state === 'active'
-                      ? t('student_dashboard.cos.active')
-                      : step.state === 'not_required'
-                        ? t('student_dashboard.cos.not_required')
-                        : t('student_dashboard.cos.pending')}
+                  {stepStateLabel(step.state)}
                 </Badge>
-              </div>
+              </button>
             ))}
           </CardContent>
         </Card>
@@ -2163,8 +2182,9 @@ function ChangeOfStatusTab({
             </p>
           </div>
         </div>
-      </div>
+        </aside>
 
+        <div className="min-w-0">
       {hasRegisteredI20 && cosCase && (
         <Card ref={wizardRef} data-tour="student-cos-wizard" className="border-[#e3d5bd] bg-white text-[#1f1a14] dark:border-white/10 dark:bg-[#111] dark:text-white">
           <CardHeader className="border-b border-[#f3ead9] dark:border-white/10">
@@ -2180,28 +2200,19 @@ function ChangeOfStatusTab({
               </div>
               <Badge className={cn(
                 'w-fit border px-3 py-1 text-xs font-black',
-                i539SaveState === 'error'
+                activeWizardSaveState === 'error'
                   ? 'border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300'
-                  : i539SaveState === 'saved'
+                  : activeWizardSaveState === 'saved' || activeWizardStep.state === 'completed'
                     ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                     : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'
               )}>
-                {i539SaveState === 'saving' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                {autosaveLabel}
+                {activeWizardSaveState === 'saving' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                {activeWizardAutosaveLabel}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-6 p-5">
-            <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
-              <div className="mb-2 flex items-center gap-2 font-black">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                {t('student_dashboard.cos.upl_title')}
-              </div>
-              <p className="leading-relaxed">
-                {t('student_dashboard.cos.wizard.upl_full')}
-              </p>
-            </div>
-
+            <section className={wizardPanelClass('i539')}>
             {i539ValidationIssues.length > 0 && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
                 <div className="mb-2 flex items-center gap-2 font-black">
@@ -2368,7 +2379,9 @@ function ChangeOfStatusTab({
                 </label>
               </div>
             </div>
+            </section>
 
+            <section className={wizardPanelClass('i539a')}>
             <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -2512,46 +2525,12 @@ function ChangeOfStatusTab({
                     </div>
                   )}
 
-                  <div className="rounded-lg border border-dashed border-[#CE9F48]/40 bg-white p-4 dark:bg-black/20">
-                    <h4 className="text-sm font-black">
-                      {t('student_dashboard.cos.wizard.i539a.add_title')}
-                    </h4>
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <div className="grid gap-2">
-                        <Label htmlFor="cos-new-dependent-name">{t('student_dashboard.cos.wizard.i539a.full_name')}</Label>
-                        <Input id="cos-new-dependent-name" value={newDependentForm.full_name} onChange={event => handleNewDependentChange('full_name', event.target.value)} />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="cos-new-dependent-relationship">{t('student_dashboard.cos.wizard.i539a.relationship_label')}</Label>
-                        <select id="cos-new-dependent-relationship" value={newDependentForm.relationship} onChange={event => handleNewDependentChange('relationship', event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                          <option value="">{t('student_dashboard.cos.wizard.i539a.select_relationship')}</option>
-                          <option value="spouse">{t('student_dashboard.cos.wizard.i539a.relationship.spouse')}</option>
-                          <option value="child">{t('student_dashboard.cos.wizard.i539a.relationship.child')}</option>
-                          <option value="other">{t('student_dashboard.cos.wizard.i539a.relationship.other')}</option>
-                        </select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="cos-new-dependent-dob">{t('student_dashboard.cos.wizard.i539a.birth_date')}</Label>
-                        <Input id="cos-new-dependent-dob" type="date" value={newDependentForm.date_of_birth} onChange={event => handleNewDependentChange('date_of_birth', event.target.value)} />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="cos-new-dependent-status">{t('student_dashboard.cos.wizard.i539.current_status')}</Label>
-                        <Input id="cos-new-dependent-status" value={newDependentForm.current_nonimmigrant_status} onChange={event => handleNewDependentChange('current_nonimmigrant_status', event.target.value)} placeholder="B-2" />
-                      </div>
-                    </div>
-                    {newDependentError && (
-                      <p className="mt-3 text-sm font-semibold text-red-600 dark:text-red-300">{newDependentError}</p>
-                    )}
-                    <Button type="button" onClick={handleCreateDependent} disabled={newDependentSaving || !newDependentForm.full_name.trim() || !newDependentForm.relationship} className="mt-4 bg-[#CE9F48] text-black hover:bg-[#b8892f] disabled:opacity-60">
-                      {newDependentSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-                      <Save className="h-4 w-4" />
-                      {t('student_dashboard.cos.wizard.i539a.add_button')}
-                    </Button>
-                  </div>
                 </div>
               )}
             </div>
+            </section>
 
+            <section className={wizardPanelClass('generation_submission')}>
             <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -2724,7 +2703,7 @@ function ChangeOfStatusTab({
                       <p className="font-black">{t('student_dashboard.cos.wizard.uscis_letter.documents_included')}</p>
                       <ul className="list-disc pl-4">
                         {checklistItems.filter(item => item.status === 'uploaded' || item.status === 'approved').map(item => (
-                          <li key={item.id}>{item.label}</li>
+                          <li key={item.id}>{getCosChecklistDisplayLabel(item)}</li>
                         ))}
                       </ul>
                     </div>
@@ -2732,7 +2711,9 @@ function ChangeOfStatusTab({
                 </div>
               </div>
             </div>
+            </section>
 
+            <section className={wizardPanelClass('checklist')}>
             <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -2778,7 +2759,7 @@ function ChangeOfStatusTab({
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-black">{item.label}</span>
+                              <span className="font-black">{getCosChecklistDisplayLabel(item)}</span>
                               {item.required && (
                                 <Badge className="border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]">
                                   {t('student_dashboard.cos.wizard.checklist.required')}
@@ -2833,7 +2814,9 @@ function ChangeOfStatusTab({
                 )}
               </div>
             </div>
+            </section>
 
+            <section className={wizardPanelClass('submission_method')}>
             <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -2923,83 +2906,421 @@ function ChangeOfStatusTab({
                   </Button>
                 </div>
               ) : (
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                  {(['online', 'mail'] as const).map(method => {
-                    const isOnline = method === 'online';
-                    const selected = submissionMethod === method;
-                    return (
-                      <div
-                        key={method}
-                        className={cn(
-                          'rounded-lg border bg-white p-4 dark:bg-black/20',
-                          selected
-                            ? 'border-emerald-500/40'
-                            : 'border-[#e3d5bd] dark:border-white/10'
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
-                              {isOnline ? <Globe className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
-                              {t(`student_dashboard.cos.wizard.submission_method.${method}_title`)}
-                            </div>
-                            <p className="mt-2 text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
-                              {t(`student_dashboard.cos.wizard.submission_method.${method}_desc`)}
-                            </p>
-                          </div>
-                          {selected && (
-                            <Badge className="border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                              {t('student_dashboard.cos.completed')}
-                            </Badge>
+                <>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    {(['online', 'mail'] as const).map(method => {
+                      const isOnline = method === 'online';
+                      const selected = submissionMethod === method;
+                      return (
+                        <div
+                          key={method}
+                          className={cn(
+                            'rounded-lg border bg-white p-4 dark:bg-black/20',
+                            selected
+                              ? 'border-emerald-500/40'
+                              : 'border-[#e3d5bd] dark:border-white/10'
                           )}
-                        </div>
-
-                        <div className="mt-4 space-y-2 text-sm text-[#6f6251] dark:text-gray-300">
-                          <div className="flex gap-2">
-                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
-                            <span>{t(`student_dashboard.cos.wizard.submission_method.${method}_point_1`)}</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
-                            <span>{t(`student_dashboard.cos.wizard.submission_method.${method}_point_2`)}</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
-                            <span>{t(`student_dashboard.cos.wizard.submission_method.${method}_fee_notice`)}</span>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 flex items-start gap-2">
-                          <Checkbox
-                            id={`cos-${method}-ack`}
-                            checked={submissionAck[method]}
-                            onCheckedChange={checked => setSubmissionAck(prev => ({ ...prev, [method]: checked === true }))}
-                          />
-                          <Label htmlFor={`cos-${method}-ack`} className="cursor-pointer text-sm leading-relaxed text-[#6f6251] dark:text-gray-300">
-                            {t('student_dashboard.cos.wizard.submission_method.ack')}
-                          </Label>
-                        </div>
-
-                        <Button
-                          type="button"
-                          className="mt-4 w-full bg-[#CE9F48] text-black hover:bg-[#b8892f]"
-                          disabled={!submissionAck[method] || submissionSaving}
-                          onClick={() => void handleSelectSubmissionMethod(method)}
                         >
-                          {submissionSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isOnline ? <Globe className="mr-2 h-4 w-4" /> : <Mail className="mr-2 h-4 w-4" />}
-                          {submissionSaving
-                            ? t('student_dashboard.cos.wizard.submission_method.saving')
-                            : t(`student_dashboard.cos.wizard.submission_method.choose_${method}`)}
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
+                                {isOnline ? <Globe className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                                {t(`student_dashboard.cos.wizard.submission_method.${method}_title`)}
+                              </div>
+                              <p className="mt-2 text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                                {t(`student_dashboard.cos.wizard.submission_method.${method}_desc`)}
+                              </p>
+                            </div>
+                            {selected && (
+                              <Badge className="border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                                {t('student_dashboard.cos.completed')}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="mt-4 space-y-2 text-sm text-[#6f6251] dark:text-gray-300">
+                            <div className="flex gap-2">
+                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                              <span>{t(`student_dashboard.cos.wizard.submission_method.${method}_point_1`)}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                              <span>{t(`student_dashboard.cos.wizard.submission_method.${method}_point_2`)}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+                              <span>{t(`student_dashboard.cos.wizard.submission_method.${method}_fee_notice`)}</span>
+                            </div>
+                          </div>
+
+                          <Button
+                            type="button"
+                            className="mt-4 w-full bg-[#CE9F48] text-black hover:bg-[#b8892f]"
+                            disabled={!submissionChoiceAck || submissionSaving}
+                            onClick={() => void handleSelectSubmissionMethod(method)}
+                          >
+                            {submissionSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isOnline ? <Globe className="mr-2 h-4 w-4" /> : <Mail className="mr-2 h-4 w-4" />}
+                            {submissionSaving
+                              ? t('student_dashboard.cos.wizard.submission_method.saving')
+                              : t(`student_dashboard.cos.wizard.submission_method.choose_${method}`)}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 flex justify-center">
+                    <div className="flex max-w-3xl items-start gap-2 rounded-lg border border-[#e3d5bd] bg-white p-4 dark:border-white/10 dark:bg-black/20">
+                      <Checkbox
+                        id="cos-submission-shared-ack"
+                        checked={submissionChoiceAck}
+                        onCheckedChange={checked => {
+                          const accepted = checked === true;
+                          setSubmissionAck({ online: accepted, mail: accepted });
+                        }}
+                      />
+                      <Label htmlFor="cos-submission-shared-ack" className="cursor-pointer text-sm font-semibold leading-relaxed text-[#1f1a14] dark:text-white">
+                        {t('student_dashboard.cos.wizard.submission_method.ack')}
+                      </Label>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
+            </section>
+
+            <section className={wizardPanelClass('uscis_letter')}>
+            <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-widest text-[#9a6a16] dark:text-[#CE9F48]">
+                    {t('student_dashboard.cos.steps.submission')}
+                  </div>
+                  <h3 className="mt-2 text-lg font-black">
+                    {t('student_dashboard.cos.wizard.generation_submission.title')}
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                    {t('student_dashboard.cos.wizard.generation_submission.desc')}
+                  </p>
+                </div>
+                <Badge className={cn(
+                  generationDocumentsReady
+                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                    : generationReady
+                      ? 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'
+                      : 'border-[#e3d5bd] bg-white text-[#8a7b66] dark:border-white/10 dark:bg-white/5 dark:text-gray-300'
+                )}>
+                  {generationStatusLabel}
+                </Badge>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+                {t('student_dashboard.cos.wizard.generation_submission.disclaimer')}
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                <div className="rounded-lg border border-[#e3d5bd] bg-white p-4 text-sm dark:border-white/10 dark:bg-black/20">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#6f6251] dark:text-gray-400">
+                    <Clock className="h-4 w-4" />
+                    {t('student_dashboard.cos.wizard.generation_submission.case_status')}
+                  </div>
+                  <div className="mt-2 font-black text-[#1f1a14] dark:text-white">{generationStatusLabel}</div>
+                </div>
+                <div className="rounded-lg border border-[#e3d5bd] bg-white p-4 text-sm dark:border-white/10 dark:bg-black/20">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#6f6251] dark:text-gray-400">
+                    {submissionMethod === 'online' ? <Globe className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                    {t('student_dashboard.cos.wizard.generation_submission.saved_path')}
+                  </div>
+                  <div className="mt-2 font-black text-[#1f1a14] dark:text-white">
+                    {submissionMethod === 'online'
+                      ? t('student_dashboard.cos.wizard.submission_method.current_online')
+                      : submissionMethod === 'mail'
+                        ? t('student_dashboard.cos.wizard.submission_method.current_mail')
+                        : t('student_dashboard.cos.wizard.submission_method.current_undecided')}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-[#e3d5bd] bg-white p-4 text-sm dark:border-white/10 dark:bg-black/20">
+                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#6f6251] dark:text-gray-400">
+                    <FileText className="h-4 w-4" />
+                    {t('student_dashboard.cos.wizard.generation_submission.expected_output')}
+                  </div>
+                  <div className="mt-2 font-black text-[#1f1a14] dark:text-white">
+                    {submissionMethod === 'online'
+                      ? t('student_dashboard.cos.wizard.generation_submission.online_output')
+                      : submissionMethod === 'mail'
+                        ? t('student_dashboard.cos.wizard.generation_submission.mail_output')
+                        : t('student_dashboard.cos.wizard.generation_submission.no_path_output')}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="text-xs font-black uppercase tracking-widest text-[#9a6a16] dark:text-[#CE9F48]">
+                  {t('student_dashboard.cos.wizard.generation_submission.readiness_title')}
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  {generationPrerequisites.map(item => (
+                    <div key={item.key} className="rounded-lg border border-[#e3d5bd] bg-white p-4 text-sm dark:border-white/10 dark:bg-black/20">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 gap-2">
+                          {item.met ? (
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                          ) : (
+                            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-black text-[#1f1a14] dark:text-white">{item.label}</div>
+                            {item.detail && (
+                              <div className="mt-1 text-xs leading-relaxed text-[#6f6251] dark:text-gray-400">{item.detail}</div>
+                            )}
+                          </div>
+                        </div>
+                        <Badge className={item.met
+                          ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                          : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]'
+                        }>
+                          {item.met
+                            ? t('student_dashboard.cos.wizard.generation_submission.ready')
+                            : t('student_dashboard.cos.wizard.generation_submission.pending')}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-lg border border-[#e3d5bd] bg-white p-4 dark:border-white/10 dark:bg-black/20">
+                {submissionMethod === 'online' ? (
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
+                        <Globe className="h-4 w-4" />
+                        {t('student_dashboard.cos.wizard.generation_submission.online_title')}
+                      </div>
+                      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                        {t('student_dashboard.cos.wizard.generation_submission.online_desc')}
+                      </p>
+                    </div>
+                    <Badge className="w-fit border-[#e3d5bd] bg-white text-[#8a7b66] dark:border-white/10 dark:bg-white/5 dark:text-gray-300">
+                      {t('student_dashboard.cos.wizard.generation_submission.online_badge')}
+                    </Badge>
+                  </div>
+                ) : submissionMethod === 'mail' ? (
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
+                        <Mail className="h-4 w-4" />
+                        {t('student_dashboard.cos.wizard.generation_submission.mail_title')}
+                      </div>
+                      <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">
+                        {t('student_dashboard.cos.wizard.generation_submission.mail_desc')}
+                      </p>
+                    </div>
+                    <Badge className="w-fit border-[#e3d5bd] bg-white text-[#8a7b66] dark:border-white/10 dark:bg-white/5 dark:text-gray-300">
+                      {hasDependents
+                        ? t('student_dashboard.cos.wizard.generation_submission.mail_with_dependents_badge')
+                        : t('student_dashboard.cos.wizard.generation_submission.mail_badge')}
+                    </Badge>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 text-sm text-[#6f6251] dark:text-gray-300">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
+                    {t('student_dashboard.cos.wizard.generation_submission.choose_path_first')}
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-2 text-sm text-[#6f6251] dark:text-gray-300">
+                  {(submissionMethod === 'online'
+                    ? ['online_item_1', 'online_item_2', 'online_item_3']
+                    : submissionMethod === 'mail'
+                      ? ['mail_item_1', 'mail_item_2', 'mail_item_3']
+                      : []
+                  ).map(key => (
+                    <div key={key} className="flex gap-2">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                      <span>{t(`student_dashboard.cos.wizard.generation_submission.${key}`)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {submissionMethod === 'online' && (
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
+                        <Globe className="h-4 w-4" />
+                        {t('student_dashboard.cos.wizard.generation_submission.online_guide_title')}
+                      </div>
+                      <div className="mt-4 space-y-3 text-sm text-[#6f6251] dark:text-gray-300">
+                        {[
+                          'online_step_1',
+                          'online_step_2',
+                          'online_step_3',
+                          'online_step_4',
+                          'online_step_5',
+                          'online_step_6',
+                          'online_step_7',
+                          'online_step_8',
+                        ].map((key, index) => (
+                          <div key={key} className="flex gap-3">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#CE9F48] text-xs font-black text-black">
+                              {index + 1}
+                            </span>
+                            <span>{t(`student_dashboard.cos.wizard.generation_submission.${key}`)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <a
+                          href="https://www.uscis.gov/i539online"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-9 items-center gap-2 rounded-md border border-[#CE9F48]/40 px-3 text-xs font-black text-[#9a6a16] transition-colors hover:bg-[#CE9F48]/10 dark:text-[#CE9F48]"
+                        >
+                          {t('student_dashboard.cos.wizard.generation_submission.official_i539_online')}
+                          <ArrowUpRight className="h-4 w-4" />
+                        </a>
+                        <a
+                          href="https://my.uscis.gov"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-9 items-center gap-2 rounded-md border border-[#CE9F48]/40 px-3 text-xs font-black text-[#9a6a16] transition-colors hover:bg-[#CE9F48]/10 dark:text-[#CE9F48]"
+                        >
+                          {t('student_dashboard.cos.wizard.generation_submission.myuscis_account')}
+                          <ArrowUpRight className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
+                        <FileText className="h-4 w-4" />
+                        {t('student_dashboard.cos.wizard.generation_submission.online_summary_title')}
+                      </div>
+                      <div className="mt-4 grid gap-2 text-sm text-[#6f6251] dark:text-gray-300">
+                        {[
+                          'summary_profile',
+                          'summary_i20',
+                          'summary_i94',
+                          'summary_i539',
+                          'summary_letter',
+                          'summary_documents',
+                          'summary_responsibility',
+                        ].map(key => (
+                          <div key={key} className="flex gap-2">
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                            <span>{t(`student_dashboard.cos.wizard.generation_submission.${key}`)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+                        {t('student_dashboard.cos.wizard.generation_submission.online_generation_note')}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {submissionMethod === 'mail' && (
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
+                        <FileText className="h-4 w-4" />
+                        {t('student_dashboard.cos.wizard.generation_submission.mail_package_title')}
+                      </div>
+                      <div className="mt-4 grid gap-2 text-sm text-[#6f6251] dark:text-gray-300">
+                        <div className="flex gap-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                          <span>{t('student_dashboard.cos.wizard.generation_submission.mail_package_i539')}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                          <span>
+                            {hasDependents
+                              ? t('student_dashboard.cos.wizard.generation_submission.mail_package_i539a', { count: dependentForms.length })
+                              : t('student_dashboard.cos.wizard.generation_submission.mail_package_i539a_not_required')}
+                          </span>
+                        </div>
+                        {[
+                          'mail_package_letter',
+                          'mail_package_supporting_docs',
+                          'mail_package_summary',
+                        ].map(key => (
+                          <div key={key} className="flex gap-2">
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" />
+                            <span>{t(`student_dashboard.cos.wizard.generation_submission.${key}`)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+                        {t('student_dashboard.cos.wizard.generation_submission.mail_no_branding_note')}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-[#e3d5bd] bg-[#fffaf0] p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="flex items-center gap-2 text-sm font-black text-[#9a6a16] dark:text-[#CE9F48]">
+                        <Mail className="h-4 w-4" />
+                        {t('student_dashboard.cos.wizard.generation_submission.mail_print_title')}
+                      </div>
+                      <div className="mt-4 space-y-3 text-sm text-[#6f6251] dark:text-gray-300">
+                        {[
+                          'mail_step_1',
+                          'mail_step_2',
+                          'mail_step_3',
+                          'mail_step_4',
+                          'mail_step_5',
+                        ].map((key, index) => (
+                          <div key={key} className="flex gap-3">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#CE9F48] text-xs font-black text-black">
+                              {index + 1}
+                            </span>
+                            <span>{t(`student_dashboard.cos.wizard.generation_submission.${key}`)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 rounded-lg border border-[#CE9F48]/30 bg-[#CE9F48]/10 p-3 text-sm text-[#6f6251] dark:text-gray-300">
+                        <div className="font-black text-[#1f1a14] dark:text-white">
+                          {t('student_dashboard.cos.wizard.generation_submission.mail_address_title')}
+                        </div>
+                        <p className="mt-1 leading-relaxed">
+                          {t('student_dashboard.cos.wizard.generation_submission.mail_address_desc')}
+                        </p>
+                        <a
+                          href="https://www.uscis.gov/i-539-addresses"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-flex h-9 items-center gap-2 rounded-md border border-[#CE9F48]/40 px-3 text-xs font-black text-[#9a6a16] transition-colors hover:bg-[#CE9F48]/10 dark:text-[#CE9F48]"
+                        >
+                          {t('student_dashboard.cos.wizard.generation_submission.official_i539_addresses')}
+                          <ArrowUpRight className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200 lg:col-span-2">
+                      {t('student_dashboard.cos.wizard.generation_submission.mail_generation_note')}
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  disabled
+                  className="mt-4 bg-[#CE9F48] text-black hover:bg-[#b8892f] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {!generationReady
+                    ? t('student_dashboard.cos.wizard.generation_submission.button_blocked')
+                    : submissionMethod === 'online'
+                      ? t('student_dashboard.cos.wizard.generation_submission.button_online')
+                      : t('student_dashboard.cos.wizard.generation_submission.button_mail')}
+                </Button>
+              </div>
+            </div>
+            </section>
           </CardContent>
         </Card>
       )}
+        </div>
+      </div>
     </div>
   );
 }

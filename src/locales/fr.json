@@ -1847,7 +1847,7 @@
           "mail_point_1": "Utiliser les PDF, imprimer si nécessaire, signer physiquement et organiser le dossier documentaire.",
           "mail_point_2": "Envoyer à l'adresse/lockbox indiquée par l'USCIS et conserver la preuve de suivi.",
           "mail_fee_notice": "Les frais et adresses d'envoi sont des informations officielles USCIS, peuvent changer et doivent être vérifiés avant l'envoi.",
-          "ack": "Je déclare comprendre que MIGMA ne recommande pas ce mode et que la soumission relève de ma responsabilité.",
+          "ack": "Je déclare comprendre que MIGMA ne recommande pas le mode que j'ai choisi et que la soumission relève de ma responsabilité.",
           "choose_online": "Continuer en ligne",
           "choose_mail": "Continuer par courrier",
           "saving": "Enregistrement du choix",
@@ -1858,6 +1858,89 @@
           "mail_required_desc": "Comme ce dossier COS comporte des personnes à charge, ce flux exige un dossier par courrier pour inclure l'I-539A de chaque personne à charge.",
           "mail_required_ack": "Je comprends qu'avec des personnes à charge dans ce dossier, le mode courrier est obligatoire dans ce flux et que la soumission reste sous ma responsabilité.",
           "confirm_mail": "Confirmer le courrier"
+        },
+        "generation_submission": {
+          "title": "Génération et soumission",
+          "desc": "Cette étape regroupe les derniers prérequis avant de préparer les documents du mode choisi.",
+          "disclaimer": "MIGMA ne soumet pas de formulaires à l'USCIS, ne paie pas les frais officiels et ne représente pas l'étudiant. La révision finale, la signature, le paiement et la soumission sont des actes personnels de l'étudiant.",
+          "case_status": "Statut de l'étape",
+          "saved_path": "Mode enregistré",
+          "expected_output": "Sortie prévue",
+          "online_output": "Résumé personnel et guide myUSCIS",
+          "mail_output": "Dossier PDF par courrier",
+          "no_path_output": "En attente du choix",
+          "readiness_title": "Prérequis finaux",
+          "ready": "Prêt",
+          "pending": "En attente",
+          "status_blocked": "En attente des prérequis",
+          "status_ready": "Prêt pour génération",
+          "status_generated": "Documents générés",
+          "status_submitted": "Soumis à l'USCIS",
+          "online_title": "Flux en ligne",
+          "online_desc": "Pour le mode en ligne, la plateforme doit préparer uniquement un résumé personnel et le guide éducatif pour une utilisation directe dans myUSCIS.",
+          "online_badge": "Pas de PDF officiel I-539",
+          "online_item_1": "Résumé personnel avec données organisées pour référence.",
+          "online_item_2": "Guide éducatif myUSCIS avec liens officiels.",
+          "online_item_3": "Confirmation future de la soumission effectuée par l'étudiant.",
+          "online_guide_title": "Guide myUSCIS",
+          "online_step_1": "Créer ou accéder au compte myUSCIS.",
+          "online_step_2": "Démarrer une demande I-539 sur le portail officiel.",
+          "online_step_3": "Compléter les informations avec les documents officiels et des faits vrais.",
+          "online_step_4": "Téléverser les documents numériques approuvés.",
+          "online_step_5": "Relire attentivement chaque écran avant de continuer.",
+          "online_step_6": "Payer les frais officiels directement sur le portail USCIS.",
+          "online_step_7": "Signer électroniquement et soumettre soi-même via myUSCIS.",
+          "online_step_8": "Conserver le receipt number et suivre le dossier dans le compte USCIS.",
+          "official_i539_online": "USCIS I-539 en ligne",
+          "myuscis_account": "Compte myUSCIS",
+          "online_summary_title": "Résumé personnel prévu",
+          "summary_profile": "Données personnelles et coordonnées de l'étudiant.",
+          "summary_i20": "Données de l'I-20 enregistrées par l'équipe.",
+          "summary_i94": "I-94, statut actuel et dates principales.",
+          "summary_i539": "Réponses structurées de l'I-539 complétées par l'étudiant.",
+          "summary_letter": "Blocs de la lettre USCIS rédigés par l'étudiant.",
+          "summary_documents": "Liste des documents approuvés pour référence.",
+          "summary_responsibility": "Avis de responsabilité et liens officiels USCIS.",
+          "online_generation_note": "À cette étape, nous ne générons pas encore de PDF. La prochaine étape technique sera de transformer ce résumé en fichier téléchargeable sans générer le formulaire officiel I-539 pour soumission.",
+          "mail_title": "Flux par courrier",
+          "mail_desc": "Pour le mode courrier, la plateforme doit préparer le dossier PDF et guider l'impression, la signature manuscrite et l'envoi physique.",
+          "mail_badge": "I-539 + lettre + résumé",
+          "mail_with_dependents_badge": "I-539 + I-539A + lettre + résumé",
+          "mail_item_1": "PDF officiel I-539 sans marque MIGMA.",
+          "mail_item_2": "Lettre USCIS et un I-539A par personne à charge le cas échéant.",
+          "mail_item_3": "Résumé personnel séparé avec marque MIGMA pour les dossiers de l'étudiant.",
+          "mail_package_title": "Dossier courrier prévu",
+          "mail_package_i539": "Formulaire officiel I-539 rempli sur le modèle USCIS.",
+          "mail_package_i539a": "{{count}} formulaire(s) I-539A, un pour chaque personne à charge liée au dossier.",
+          "mail_package_i539a_not_required": "I-539A n'est pas nécessaire car ce dossier n'a pas de personne à charge.",
+          "mail_package_letter": "Lettre USCIS rédigée/confirmée par l'étudiant.",
+          "mail_package_supporting_docs": "Documents justificatifs approuvés dans la checklist.",
+          "mail_package_summary": "Résumé personnel séparé pour la vérification interne de l'étudiant.",
+          "mail_no_branding_note": "Les PDFs destinés à l'USCIS ne doivent contenir aucun logo, pied de page ou marque MIGMA. Seul le résumé personnel peut inclure une identification MIGMA.",
+          "mail_print_title": "Impression, signature et envoi",
+          "mail_step_1": "Télécharger le dossier lorsque la génération réelle sera disponible.",
+          "mail_step_2": "Réviser chaque PDF et confirmer que les données correspondent aux documents officiels et aux réponses de l'étudiant.",
+          "mail_step_3": "Imprimer et signer manuellement les champs exigés par les formulaires officiels.",
+          "mail_step_4": "Organiser formulaires, lettre et documents justificatifs dans un seul dossier physique.",
+          "mail_step_5": "Envoyer avec le service choisi par l'étudiant et conserver la preuve/le suivi.",
+          "mail_address_title": "Adresse USCIS toujours à jour",
+          "mail_address_desc": "Avant l'envoi, l'étudiant doit vérifier la page officielle des adresses I-539 de l'USCIS. Les adresses lockbox et les règles peuvent changer.",
+          "official_i539_addresses": "Adresses officielles I-539",
+          "mail_generation_note": "À cette étape, nous ne générons pas encore de PDFs réels. La prochaine étape technique sera de cartographier et valider les modèles locaux avant toute function ou génération distante.",
+          "choose_path_first": "Choisissez En ligne ou Courrier avant de préparer la génération finale.",
+          "button_blocked": "En attente des prérequis",
+          "button_online": "Générer le résumé et le guide",
+          "button_mail": "Générer le dossier courrier",
+          "readiness": {
+            "i20": "I-20 enregistré",
+            "i539": "I-539 complet",
+            "i539a": "I-539A",
+            "i539a_required": "Obligatoire car il y a des personnes à charge.",
+            "i539a_not_required": "Non obligatoire pour ce dossier.",
+            "letter": "Lettre USCIS complète",
+            "checklist": "Checklist approuvée",
+            "submission": "Mode de soumission choisi"
+          }
         }
       }
     },
@@ -2033,7 +2116,35 @@
           },
           "steps": {
             "title": "Étapes COS",
-            "description": "Le module sera organisé en I-539, I-539A, lettre USCIS, checklist et génération/soumission."
+            "description": "Cette colonne est la navigation principale du COS. Cliquez sur une étape pour changer le contenu de l'assistant COS sans parcourir tout le module."
+          },
+          "step_i539": {
+            "title": "I-539",
+            "description": "Cette étape contient les informations objectives du demandeur principal. Les réponses sont enregistrées automatiquement."
+          },
+          "step_i539a": {
+            "title": "I-539A",
+            "description": "Cette étape n'est obligatoire que lorsque le dossier COS comporte des personnes à charge. Elles sont enregistrées par l'équipe, pas par l'étudiant."
+          },
+          "step_uscis_letter": {
+            "title": "Lettre USCIS",
+            "description": "L'étudiant rédige et confirme les blocs narratifs. MIGMA garde le contenu éducatif et ne fournit pas de conseil juridique."
+          },
+          "step_checklist": {
+            "title": "Checklist",
+            "description": "Téléversez les documents demandés. L'étape n'est terminée que lorsque les documents obligatoires sont approuvés ou marqués non applicables."
+          },
+          "step_submission_method": {
+            "title": "En ligne ou courrier",
+            "description": "L'étudiant choisit le mode de soumission selon les instructions officielles. La plateforme ne recommande pas de stratégie."
+          },
+          "step_generation_submission": {
+            "title": "Génération et soumission",
+            "description": "Cette étape présente les prérequis finaux et les documents de génération/soumission selon le mode choisi."
+          },
+          "wizard": {
+            "title": "Assistant COS",
+            "description": "Ce panneau affiche uniquement l'étape sélectionnée à gauche. Utilisez la colonne des étapes pour avancer dans le module."
           },
           "readiness": {
             "title": "Prérequis",
